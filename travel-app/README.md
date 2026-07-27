@@ -26,7 +26,6 @@
 ### 方法 2：資料夾（永久保存、可分享、可裝成獨立 App）
 
 ```bash
-cd travel-app
 cp -r trips/_template trips/kyoto-2026-10      # 1. 複製範本，資料夾名字自己取
 ```
 
@@ -59,8 +58,9 @@ meta: {
 
 ## 怎麼跑
 
+在這個資料夾（有 `index.html` 的那層）執行：
+
 ```bash
-cd travel-app
 python3 -m http.server 8080
 # 瀏覽器打開 http://localhost:8080  → 選一趟旅程
 ```
@@ -119,8 +119,9 @@ python3 -m http.server 8080
 ## 檔案結構
 
 ```
-travel-app/
+./                             # 這個資料夾就是整個 App，可以直接當 repo 根目錄
 ├── index.html                 # 首頁：旅程清單
+├── .nojekyll                  # GitHub Pages 必要（否則 _template 會被忽略）
 ├── trips.js                   # ★ 旅程註冊表（開新旅程時加一行）
 ├── engine/                    # 共用引擎，不用改
 │   ├── app.js                 #   全部邏輯（並對外開放 window.TripAPI 給助理用）
