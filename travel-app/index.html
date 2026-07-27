@@ -2,47 +2,21 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#FBEFE3" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="宮古島 6天5夜" />
-  <meta name="description" content="宮古島 6 天 5 夜 · 雙人旅遊行程 App：地圖、每日時間軸、航班天氣、必買清單、匯率換算、記帳分帳。" />
-  <title>宮古島 6天5夜</title>
-
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="assets/icon.svg" />
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="assets/styles.css" />
+  <title>我的旅程</title>
+  <link rel="icon" href="engine/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="engine/styles.css" />
 </head>
 <body>
-  <div id="app" class="app">
-    <div class="topStack">
-    <!-- 頁首：地圖 + 標題 + 波浪 -->
-    <header class="hero" id="hero">
-      <div class="hero__map" id="map" aria-label="行程地圖"></div>
-      <div class="hero__mapHint" id="mapHint">點圖釘看店家 · 可縮放</div>
-      <div class="hero__scrim"></div>
-      <div class="hero__text">
-        <p class="hero__eyebrow" id="heroEyebrow">MIYAKOJIMA · OKINAWA</p>
-        <h1 class="hero__title" id="heroTitle">宮古島 6天5夜</h1>
-        <p class="hero__range" id="heroRange">7/20 – 7/25</p>
-      </div>
-      <svg class="hero__wave" viewBox="0 0 390 46" preserveAspectRatio="none" aria-hidden="true">
-        <path fill="#2FA8B5" fill-opacity=".85" d="M0 18c48-16 96 12 146 8s84-22 130-16 78 22 114 14v22H0z"/>
-        <path fill="#FBEFE3" d="M0 28c52-14 92 10 146 6s86-20 132-14 76 20 112 12v14H0z"/>
-      </svg>
+  <div class="app home">
+    <header class="homeHead">
+      <p class="pageKicker">MY TRIPS</p>
+      <h1 class="homeTitle">我的旅程</h1>
+      <p class="homeSub">選一趟打開，或複製 <code>trips/_template</code> 開新的一趟。</p>
     </header>
 
-    <!-- 日期分頁 -->
-    <nav class="dayTabs" id="dayTabs" aria-label="選擇日期"></nav>
-    </div>
-
-    <!-- 內容 -->
-    <main class="main" id="main" tabindex="-1"></main>
+    <main class="main" id="tripList"></main>
 
     <footer class="siteFoot">
       <svg class="siteFoot__art" viewBox="0 0 260 70" aria-hidden="true">
@@ -61,39 +35,31 @@
           <circle cx="42" cy="46" r="5"/><circle cx="66" cy="46" r="5"/>
         </g>
       </svg>
-      <p class="siteFoot__note" id="footNote">DRIVE SAFE · 宮古ブルー</p>
+      <p class="siteFoot__note">HAVE A GOOD TRIP</p>
     </footer>
-
-    <!-- 工具箱浮動鈕 -->
-    <button class="fab" id="fab" type="button" aria-label="打開工具箱">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        <rect x="3" y="7" width="18" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
-        <path d="M3 12.5h18M10.5 12.5h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
-    </button>
   </div>
 
-  <!-- 對話框（新增／編輯行程、記帳） -->
-  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
-    <form method="dialog" id="sheetForm" class="sheet__form">
-      <div class="sheet__head">
-        <h2 class="sheet__title" id="sheetTitle">編輯</h2>
-        <button class="sheet__close" value="cancel" type="submit" aria-label="關閉">✕</button>
-      </div>
-      <div class="sheet__body" id="sheetBody"></div>
-      <div class="sheet__foot">
-        <button class="btn btn--ghost" value="cancel" type="submit">取消</button>
-        <button class="btn btn--primary" value="save" type="submit" id="sheetSave">儲存</button>
-      </div>
-    </form>
-  </dialog>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="assets/data.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="trips.js"></script>
+  <script>
+    (function () {
+      var list = window.TRIPS || [];
+      var esc = function (s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+      document.getElementById('tripList').innerHTML = list.length
+        ? list.map(function (t) {
+            return '<a class="tripCard" href="trips/' + esc(t.folder) + '/index.html">' +
+              '<span class="tripCard__emoji">' + esc(t.emoji || '🧳') + '</span>' +
+              '<span class="tripCard__body">' +
+                '<span class="tripCard__t">' + esc(t.title) + '</span>' +
+                '<span class="tripCard__s">' + esc(t.sub || '') + '</span>' +
+                '<span class="tripCard__r">' + esc(t.range || '') + '</span>' +
+              '</span><span class="tripCard__go">→</span></a>';
+          }).join('')
+        : '<p class="empty">還沒有任何旅程<br>複製 trips/_template 資料夾，再到 trips.js 加一行</p>';
+    })();
+  </script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+{
+  "name": "宮古島 6天5夜",
+  "short_name": "宮古島",
+  "description": "宮古島 6 天 5 夜 · 雙人旅遊行程",
+  "lang": "zh-Hant",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBEFE3",
+  "theme_color": "#FBEFE3",
+  "icons": [
+    { "src": "../../engine/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "../../engine/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

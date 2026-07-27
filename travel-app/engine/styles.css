@@ -162,7 +162,9 @@ a{color:var(--teal-dk)}
 }
 
 /* ---------------- 時間軸 ---------------- */
-.timeline{position:relative;padding-left:60px}
+.mapOff{display:grid;place-items:center;height:100%;color:#fff;font-size:13px;opacity:.85}
+
+.timeline{position:relative;padding-left:60px;list-style:none;margin:0}
 .timeline::before{
   content:"";position:absolute;left:51px;top:8px;bottom:8px;width:3px;
   background:linear-gradient(180deg,var(--teal),#9FD8DF);border-radius:2px;
@@ -231,7 +233,11 @@ a{color:var(--teal-dk)}
 .panel__title{margin:0;font-size:17px;font-weight:800;color:var(--navy)}
 .bg-navy{background:var(--navy)}.bg-teal{background:var(--teal)}
 .bg-purple{background:var(--purple)}.bg-amber{background:var(--amber);color:var(--navy)!important}
-.bg-blue{background:#2E6FA8}
+.bg-blue{background:#2E6FA8}.bg-slate{background:#5A7186}
+.panel__edit{
+  margin-left:auto;flex:0 0 auto;font-size:13.5px;font-weight:700;color:var(--teal-dk);
+  padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;
+}
 
 /* 工具箱 */
 .toolGrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
@@ -243,6 +249,12 @@ a{color:var(--teal-dk)}
 .toolCard__icon svg{width:21px;height:21px}
 .toolCard b{display:block;font-size:16.5px;font-weight:800;color:var(--navy)}
 .toolCard span{display:block;margin-top:3px;font-size:12.5px;color:var(--muted)}
+.toolCard--wide{
+  display:flex;align-items:center;gap:14px;width:100%;margin-top:13px;padding:14px;
+}
+.toolCard--wide .toolCard__icon{margin-bottom:0}
+.toolCard--wide .toolCard__body{flex:1;min-width:0}
+.toolCard--wide .toolCard__body>b{font-size:16px}
 
 /* 航班 */
 .leg{background:#F6EFE6;border-radius:13px;padding:12px 14px;margin-bottom:10px}
@@ -406,9 +418,14 @@ a{color:var(--teal-dk)}
   width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--line);
   background:#fff;font-size:15px;color:var(--ink);
 }
-.field textarea{min-height:70px;resize:vertical}
+.field textarea{min-height:70px;resize:vertical;font-family:var(--sans);line-height:1.5}
+.field__hint{margin:5px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
 .field--row{display:flex;gap:11px}
-.field--row>*{flex:1}
+.field--row>*{flex:1;min-width:0}
+.sheet__sub{
+  margin:6px 0 -4px;font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;
+  color:var(--teal-dk);font-weight:700;
+}
 
 /* ---------------- Toast ---------------- */
 .toast{
@@ -418,6 +435,30 @@ a{color:var(--teal-dk)}
   transition:opacity .22s,transform .22s;max-width:88vw;text-align:center;
 }
 .toast.is-on{opacity:1;transform:translate(-50%,0)}
+
+/* ---------------- 首頁：旅程清單 ---------------- */
+.home{min-height:100vh;display:flex;flex-direction:column}
+.homeHead{padding:calc(34px + env(safe-area-inset-top,0px)) 20px 6px}
+.homeTitle{margin:0;font-size:32px;font-weight:800;color:var(--navy)}
+.homeSub{margin:8px 0 0;font-size:13.5px;color:var(--muted);line-height:1.6}
+.homeSub code{background:#F1E7DA;padding:1px 6px;border-radius:5px;font-size:12.5px}
+.home .main{flex:1;padding-top:22px}
+.tripCard{
+  display:flex;align-items:center;gap:14px;text-decoration:none;
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:16px;margin-bottom:13px;
+}
+.tripCard__emoji{
+  width:52px;height:52px;border-radius:15px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:26px;background:#EAF3F5;
+}
+.tripCard__body{flex:1;min-width:0}
+.tripCard__t{display:block;font-size:18px;font-weight:800;color:var(--navy)}
+.tripCard__s{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--muted);margin-top:3px}
+.tripCard__r{display:block;font-family:var(--mono);font-size:12.5px;color:var(--teal-dk);margin-top:5px}
+.tripCard__go{color:var(--muted);font-size:20px;flex:0 0 auto}
+.siteFoot__home{margin:14px 0 0;font-size:13px}
+.siteFoot__home a{color:var(--muted);text-decoration:none}
 
 /* ---------------- Footer ---------------- */
 .siteFoot{padding:14px 16px calc(96px + var(--safe-b));text-align:center}
