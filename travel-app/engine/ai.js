@@ -5,8 +5,21 @@
 
    ⚠️ 金鑰是「自備」的：存在這台裝置的 localStorage，只會送到
    api.anthropic.com。詳見 README 的「安全性」章節。
+
+   SDK 是「用到才載」（動態 import）——絕對不要改回頂層 static import：
+   那樣只要 CDN 載不到（離線、被擋、網路慢），整個模組就不會執行，
+   連聊天按鈕都不會出現，而且畫面上不會有任何錯誤訊息。
    =========================================================== */
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@^0.110.0';
+const SDK_URL = 'https://esm.sh/@anthropic-ai/sdk@^0.110.0';
+let AnthropicCtor = null;
+
+async function loadSDK() {
+  if (AnthropicCtor) return AnthropicCtor;
+  const mod = await import(/* @vite-ignore */ SDK_URL);
+  AnthropicCtor = mod.default || mod.Anthropic;
+  if (!AnthropicCtor) throw new Error('SDK 格式不符');
+  return AnthropicCtor;
+}
 
 const $ = (s, r) => (r || document).querySelector(s);
 const KEY_API = 'ai.apiKey.v1';
@@ -519,10 +532,11 @@ function budgetBlocked() {
   return true;
 }
 
-function getClient() {
+async function getClient() {
   const key = get(KEY_API);
   if (!key) return null;
   if (!client) {
+    const Anthropic = await loadSDK();
     client = new Anthropic({
       apiKey: key,
       /* 這是純前端 App，沒有後端可以代呼叫；金鑰是使用者自備並存在自己裝置上。 */
@@ -535,13 +549,23 @@ function getClient() {
 /* ---------------- 送出一輪對話（含工具迴圈） ---------------- */
 async function send(text) {
   if (busy) return;
-  const c = getClient();
-  if (!c) { bubble('bot', '還沒設定 API 金鑰。'); showSettings(true); return; }
+  if (!get(KEY_API)) { bubble('bot', '還沒設定 API 金鑰。'); showSettings(true); return; }
   if (budgetBlocked()) return;
 
   busy = true;
   $('#aiPanel').classList.add('is-busy');
   bubble('user', esc(text).replace(/\n/g, '<br>'));
+
+  let c;
+  try {
+    c = await getClient();
+  } catch (e) {
+    busy = false;
+    $('#aiPanel')?.classList.remove('is-busy');
+    bubble('bot', `載入 AI 元件失敗（${esc(e.message)}）。它是從 esm.sh 取得的，請確認有網路、或稍後再試。行程的其他功能都不受影響。`, 'aiMsg--err');
+    return;
+  }
+
   history.push({ role: 'user', content: text });
 
   const model = get(KEY_MODEL, MODELS[0].id);
