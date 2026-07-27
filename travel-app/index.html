@@ -13,10 +13,21 @@
     <header class="homeHead">
       <p class="pageKicker">MY TRIPS</p>
       <h1 class="homeTitle">我的旅程</h1>
-      <p class="homeSub">選一趟打開，或複製 <code>trips/_template</code> 開新的一趟。</p>
+      <p class="homeSub">點一趟打開，或按下面的按鈕開一趟新的。</p>
     </header>
 
     <main class="main" id="tripList"></main>
+
+    <div class="homeActs">
+      <button class="btn btn--primary btn--block newTripBtn" id="newTrip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        新增一趟旅程
+      </button>
+      <p class="homeHint">
+        自建的旅程存在這台裝置的瀏覽器裡。想長久保存或分享，進去之後用
+        「工具箱 → 行程設定 → 匯出 trip.js」，把檔案放進 <code>trips/</code> 的新資料夾。
+      </p>
+    </div>
 
     <footer class="siteFoot">
       <svg class="siteFoot__art" viewBox="0 0 260 70" aria-hidden="true">
@@ -39,27 +50,188 @@
     </footer>
   </div>
 
+  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+    <form method="dialog" id="sheetForm" class="sheet__form">
+      <div class="sheet__head">
+        <h2 class="sheet__title" id="sheetTitle">新增一趟旅程</h2>
+        <button class="sheet__close" value="cancel" type="submit" aria-label="關閉">✕</button>
+      </div>
+      <div class="sheet__body">
+        <div class="field">
+          <label for="f_title">旅程標題</label>
+          <input id="f_title" name="title" type="text" placeholder="例：京都 5天4夜" required />
+        </div>
+        <div class="field">
+          <label for="f_sub">英文／日文副標</label>
+          <input id="f_sub" name="sub" type="text" placeholder="例：KYOTO · JAPAN" />
+        </div>
+        <div class="field--row">
+          <div class="field">
+            <label for="f_start">出發日</label>
+            <input id="f_start" name="start" type="date" required />
+          </div>
+          <div class="field">
+            <label for="f_end">回程日</label>
+            <input id="f_end" name="end" type="date" required />
+          </div>
+        </div>
+        <div class="field--row">
+          <div class="field"><label for="f_m1">成員 1</label><input id="f_m1" name="m1" type="text" value="我" /></div>
+          <div class="field"><label for="f_m2">成員 2</label><input id="f_m2" name="m2" type="text" value="旅伴" /></div>
+        </div>
+        <div class="field--row">
+          <div class="field"><label for="f_cfrom">當地幣別</label><input id="f_cfrom" name="cfrom" type="text" value="JPY" /></div>
+          <div class="field"><label for="f_cto">本國幣別</label><input id="f_cto" name="cto" type="text" value="TWD" /></div>
+          <div class="field"><label for="f_rate">匯率</label><input id="f_rate" name="rate" type="number" step="0.0001" value="0.21" /></div>
+        </div>
+        <div class="field">
+          <label for="f_center">地圖中心座標</label>
+          <input id="f_center" name="center" type="text" placeholder="35.0116,135.7681" />
+          <p class="field__hint">從 Google Maps 網址複製 @ 後面那一組數字。留空的話之後可以在「行程設定」補。</p>
+        </div>
+        <div class="field">
+          <label for="f_emoji">首頁圖示</label>
+          <input id="f_emoji" name="emoji" type="text" value="🧳" maxlength="4" />
+        </div>
+      </div>
+      <div class="sheet__foot">
+        <button class="btn btn--ghost" value="cancel" type="submit">取消</button>
+        <button class="btn btn--primary" value="save" type="submit">建立並開始編輯</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="trips.js"></script>
   <script>
-    (function () {
-      var list = window.TRIPS || [];
-      var esc = function (s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
+  (function () {
+    'use strict';
+    var $ = function (s) { return document.querySelector(s); };
+    var REG = 'myTrips.v1';            /* 自建旅程的 id 清單 */
+    var esc = function (s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    };
+    var get = function (k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+    var set = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { alert('儲存失敗，瀏覽器空間不足或處於隱私模式。'); return false; } };
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var iso = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+    var fmt = function (s) { var p = s.split('-'); return p[0] + '/' + p[1] + '/' + p[2]; };
+
+    /* --- 讀出自建旅程（標題等資訊直接從那趟的資料讀，才不會跟 App 內的編輯脫節） --- */
+    function customTrips() {
+      return get(REG, []).map(function (id) {
+        var blob = get('trip:' + id + ':data', null);
+        if (!blob || !blob.data) return null;
+        var m = blob.data.meta || {};
+        var days = blob.data.days || [];
+        var last = days.length ? days[days.length - 1].date : m.endDate;
+        return {
+          id: id, custom: true,
+          title: m.title || '未命名旅程',
+          sub: m.subtitleEn || '',
+          range: m.startDate ? fmt(m.startDate) + ' – ' + fmt(last || m.startDate) : '',
+          emoji: m.emoji || '🧳'
+        };
+      }).filter(Boolean);
+    }
+
+    function card(t) {
+      var href = t.custom
+        ? 'trips/custom/index.html?id=' + encodeURIComponent(t.id)
+        : 'trips/' + esc(t.folder) + '/index.html';
+      return '<div class="tripRow">' +
+        '<a class="tripCard" href="' + esc(href) + '">' +
+          '<span class="tripCard__emoji">' + esc(t.emoji || '🧳') + '</span>' +
+          '<span class="tripCard__body">' +
+            '<span class="tripCard__t">' + esc(t.title) + '</span>' +
+            '<span class="tripCard__s">' + esc(t.sub || '') + '</span>' +
+            '<span class="tripCard__r">' + esc(t.range || '') + '</span>' +
+          '</span><span class="tripCard__go">→</span></a>' +
+        (t.custom ? '<button class="tripDel" data-del="' + esc(t.id) + '" aria-label="刪除這趟旅程">✕</button>' : '') +
+      '</div>';
+    }
+
+    function render() {
+      var all = (window.TRIPS || []).concat(customTrips());
+      $('#tripList').innerHTML = all.length
+        ? all.map(card).join('')
+        : '<p class="empty">還沒有任何旅程<br>按下面「新增一趟旅程」開始</p>';
+    }
+
+    /* --- 新增 --- */
+    $('#newTrip').addEventListener('click', function () {
+      var t = new Date();
+      $('#f_start').value = iso(t);
+      t.setDate(t.getDate() + 3);
+      $('#f_end').value = iso(t);
+      $('#f_title').value = '';
+      var dlg = $('#sheet');
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    });
+
+    $('#sheetForm').addEventListener('submit', function (ev) {
+      if (((ev.submitter && ev.submitter.value) || 'cancel') !== 'save') return;
+      var f = {};
+      Array.prototype.forEach.call(this.querySelectorAll('[name]'), function (el) { f[el.name] = el.value.trim(); });
+
+      if (!f.title) { alert('請填旅程標題'); ev.preventDefault(); return; }
+      if (!f.start || !f.end) { alert('請填出發日與回程日'); ev.preventDefault(); return; }
+      var span = Math.round((new Date(f.end + 'T00:00:00') - new Date(f.start + 'T00:00:00')) / 86400000) + 1;
+      if (span < 1) { alert('回程日不能早於出發日'); ev.preventDefault(); return; }
+      if (span > 60) { alert('一趟旅程最多 60 天'); ev.preventDefault(); return; }
+
+      var id = 'custom-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+      var ctr = (f.center || '').split(',').map(parseFloat);
+      var center = (ctr.length === 2 && !isNaN(ctr[0]) && !isNaN(ctr[1])) ? ctr : [0, 0];
+
+      var days = [];
+      for (var i = 0; i < span; i++) {
+        var d = new Date(f.start + 'T00:00:00');
+        d.setDate(d.getDate() + i);
+        days.push({ n: i + 1, date: iso(d), title: '', items: [] });
+      }
+
+      var trip = {
+        meta: {
+          id: id, title: f.title, subtitleEn: f.sub, emoji: f.emoji || '🧳',
+          rangeLabel: '', startDate: f.start, endDate: f.end,
+          members: [f.m1 || '我', f.m2 || '旅伴'],
+          currency: { from: f.cfrom || 'JPY', to: f.cto || 'TWD', rate: parseFloat(f.rate) || 1 },
+          center: center, zoom: center[0] ? 11 : 2, footerNote: 'HAVE A GOOD TRIP'
+        },
+        flights: { airline: '', legs: [], note: '' },
+        car: { title: '交通 · 住宿', rows: [], tel: '' },
+        weather: { lat: center[0], lon: center[1], title: '行程天氣', note: '資料：Open-Meteo 即時預報，每次開啟自動更新。', fallback: [] },
+        shopping: [],
+        days: days
       };
-      document.getElementById('tripList').innerHTML = list.length
-        ? list.map(function (t) {
-            return '<a class="tripCard" href="trips/' + esc(t.folder) + '/index.html">' +
-              '<span class="tripCard__emoji">' + esc(t.emoji || '🧳') + '</span>' +
-              '<span class="tripCard__body">' +
-                '<span class="tripCard__t">' + esc(t.title) + '</span>' +
-                '<span class="tripCard__s">' + esc(t.sub || '') + '</span>' +
-                '<span class="tripCard__r">' + esc(t.range || '') + '</span>' +
-              '</span><span class="tripCard__go">→</span></a>';
-          }).join('')
-        : '<p class="empty">還沒有任何旅程<br>複製 trips/_template 資料夾，再到 trips.js 加一行</p>';
-    })();
+
+      if (!set('trip:' + id + ':data', { dirty: true, data: trip })) { ev.preventDefault(); return; }
+      var reg = get(REG, []);
+      reg.push(id);
+      set(REG, reg);
+      location.href = 'trips/custom/index.html?id=' + encodeURIComponent(id) + '#/settings';
+    });
+
+    /* --- 刪除 --- */
+    $('#tripList').addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-del]');
+      if (!b) return;
+      ev.preventDefault();
+      var id = b.dataset.del;
+      var blob = get('trip:' + id + ':data', null);
+      var name = (blob && blob.data && blob.data.meta && blob.data.meta.title) || '這趟旅程';
+      if (!confirm('刪除「' + name + '」？\n行程、記帳、勾選都會一起刪掉，無法復原。')) return;
+      ['data', 'shop', 'ledger', 'day'].forEach(function (k) {
+        try { localStorage.removeItem('trip:' + id + ':' + k); } catch (e) {}
+      });
+      set(REG, get(REG, []).filter(function (x) { return x !== id; }));
+      render();
+    });
+
+    render();
+  })();
   </script>
 </body>
 </html>

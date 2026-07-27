@@ -1,0 +1,16 @@
+{
+  "name": "長灘島 4天3夜",
+  "short_name": "長灘島",
+  "description": "長灘島 4天3夜 · 旅遊行程",
+  "lang": "zh-Hant",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBEFE3",
+  "theme_color": "#FBEFE3",
+  "icons": [
+    { "src": "../../engine/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "../../engine/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

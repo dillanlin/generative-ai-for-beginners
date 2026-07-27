@@ -33,13 +33,20 @@
     del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
 
-  /* ---------------- 載入旅程資料 ---------------- */
-  var FILE = window.TRIP_DATA;
-  if (!FILE || !FILE.meta) {
-    document.body.innerHTML = '<p style="padding:40px;font-family:sans-serif">找不到 trip.js 的行程資料。</p>';
-    return;
+  /* ---------------- 載入旅程資料 ----------------
+     兩種來源：
+     1. 資料夾裡的 trip.js（window.TRIP_DATA）
+     2. 首頁「新增一趟旅程」建立的，只存在 localStorage，用網址 ?id=xxx 指定 */
+  var FILE = window.TRIP_DATA && window.TRIP_DATA.meta ? window.TRIP_DATA : null;
+  var qid = /[?&]id=([^&]+)/.exec(location.search);
+  var TID = FILE ? (FILE.meta.id || 'trip') : (qid ? decodeURIComponent(qid[1]) : null);
+  function fatal(msg) {
+    document.body.innerHTML = '<div style="padding:48px 24px;font-family:sans-serif;text-align:center;color:#12365B">' +
+      '<p style="font-size:16px;font-weight:700">' + msg + '</p>' +
+      '<p><a href="../../index.html" style="color:#1D8391">← 回所有旅程</a></p></div>';
   }
-  var TID = FILE.meta.id || 'trip';
+  if (!TID) { fatal('找不到這趟旅程的資料。'); return; }
+
   var K = {
     data: 'trip:' + TID + ':data',
     shop: 'trip:' + TID + ':shop',
@@ -48,22 +55,27 @@
   };
 
   function blankTrip() {
+    var f = FILE || {};
     return {
-      meta: clone(FILE.meta),
-      flights: clone(FILE.flights || { airline: '', legs: [], note: '' }),
-      car: clone(FILE.car || { title: '租車 · 交通', rows: [], tel: '' }),
-      weather: clone(FILE.weather || { lat: 0, lon: 0, title: '行程天氣', note: '', fallback: [] }),
-      shopping: clone(FILE.shopping || []),
-      days: clone(FILE.days || [])
+      meta: clone(f.meta || { id: TID, title: '新旅程', subtitleEn: '', startDate: todayISO(), members: ['我', '旅伴'], currency: { from: 'JPY', to: 'TWD', rate: 1 }, center: [0, 0], zoom: 10, footerNote: '' }),
+      flights: clone(f.flights || { airline: '', legs: [], note: '' }),
+      car: clone(f.car || { title: '租車 · 交通', rows: [], tel: '' }),
+      weather: clone(f.weather || { lat: 0, lon: 0, title: '行程天氣', note: '', fallback: [] }),
+      shopping: clone(f.shopping || []),
+      days: clone(f.days || [])
     };
   }
 
   /* 有本機編輯（dirty）就用本機的；沒有就永遠跟著 trip.js 走，
-     這樣你改了 trip.js 之後重新打開就會看到新內容。 */
+     這樣你改了 trip.js 之後重新打開就會看到新內容。
+     自建旅程沒有 trip.js，永遠只有本機這一份。 */
   var savedBlob = store.get(K.data, null);
+  var useSaved = !!(savedBlob && savedBlob.data && (!FILE || savedBlob.dirty));
+  if (!FILE && !useSaved) { fatal('找不到這趟旅程的資料，可能已經被刪除了。'); return; }
+
   var S = {
-    trip: (savedBlob && savedBlob.dirty && savedBlob.data) ? savedBlob.data : blankTrip(),
-    dirty: !!(savedBlob && savedBlob.dirty),
+    trip: useSaved ? savedBlob.data : blankTrip(),
+    dirty: FILE ? !!(savedBlob && savedBlob.dirty) : true,
     shop: store.get(K.shop, []),
     ledger: store.get(K.ledger, []),
     dayIndex: 0,
@@ -305,7 +317,23 @@
       (day.items.length
         ? '<ul class="timeline">' + day.items.map(function (it, i) { return stopHtml(it, i, day); }).join('') + '</ul>'
         : '<p class="empty">這天還沒有行程<br>點右上角「編輯行程」新增</p>') +
+      dayNavHtml() +
     '</section>';
+  }
+
+  /* 頁面下方的上一頁／下一頁（切換前後一天） */
+  function dayNavHtml() {
+    var days = T().days, i = S.dayIndex;
+    if (days.length < 2) return '';
+    var side = function (idx, dir) {
+      if (!days[idx]) return '<span class="dayNav__slot"></span>';
+      var d = days[idx];
+      return '<button class="dayNav__btn dayNav__btn--' + dir + '" data-day="' + idx + '">' +
+        '<span class="dayNav__dir">' + (dir === 'prev' ? '‹ 上一頁' : '下一頁 ›') + '</span>' +
+        '<span class="dayNav__t">Day ' + d.n + ' · ' + fmtMD(d.date) + '</span>' +
+        '<span class="dayNav__s">' + esc(d.title || '未命名') + '</span></button>';
+    };
+    return '<nav class="dayNav">' + side(i - 1, 'prev') + side(i + 1, 'next') + '</nav>';
   }
 
   /* ---------------- 工具箱 ---------------- */
@@ -382,7 +410,8 @@
 
       '<div class="panel"><div class="panel__head"><span class="panel__icon bg-amber">' + I.sun + '</span>' +
         '<h3 class="panel__title">' + esc(w.title || '行程天氣') + '</h3></div>' +
-        '<div id="wxSlot">' + (list.length ? wxCards(list, !!S.wx) : '<p class="empty">載入預報中…</p>') + '</div>' +
+        '<div id="wxSlot">' + (list.length ? wxCards(list, !!S.wx)
+          : '<p class="empty">出發前約 16 天內才會顯示每日預報<br>（Open-Meteo 的預報範圍）</p>') + '</div>' +
         (w.note ? '<p class="note">' + esc(w.note) + '</p>' : '') + '</div>' +
     '</section>';
   }
@@ -600,14 +629,16 @@
       '<div class="panel"><div class="panel__head"><span class="panel__icon bg-amber">' + I.code + '</span>' +
         '<h3 class="panel__title">資料</h3></div>' +
         '<p class="note" style="margin:0 0 12px">' +
-          (S.dirty
-            ? '目前顯示的是<b>你在 App 內編輯過的版本</b>。按「匯出 trip.js」把它存回檔案，換手機或分享給旅伴就不用重編。'
-            : '目前完全照著 <code>trip.js</code> 顯示。只要在 App 內做任何編輯，就會改用本機版本。') + '</p>' +
+          (!FILE
+            ? '這是在首頁自建的旅程，<b>只存在這台裝置的瀏覽器裡</b>。想長久保存就按「匯出 trip.js」，把檔案放進 <code>trips/</code> 底下的新資料夾，再到 <code>trips.js</code> 加一行。'
+            : S.dirty
+              ? '目前顯示的是<b>你在 App 內編輯過的版本</b>。按「匯出 trip.js」把它存回檔案，換手機或分享給旅伴就不用重編。'
+              : '目前完全照著 <code>trip.js</code> 顯示。只要在 App 內做任何編輯，就會改用本機版本。') + '</p>' +
         '<div class="rowActs">' +
           '<button class="btn btn--primary" data-act="export-tripjs">' + I.code + '匯出 trip.js</button>' +
           '<button class="btn btn--outline" data-act="trip-export">' + I.share + '匯出 JSON（給旅伴）</button>' +
           '<button class="btn btn--outline" data-act="trip-import">匯入 JSON</button>' +
-          '<button class="btn btn--danger" data-act="trip-reset">還原成 trip.js</button>' +
+          (FILE ? '<button class="btn btn--danger" data-act="trip-reset">還原成 trip.js</button>' : '') +
         '</div></div>' +
     '</section>';
   }
@@ -922,7 +953,7 @@
   function exportTripJs() {
     var head = '/* ' + M().title + '\n' +
       ' * 由 App 的「行程設定 → 匯出 trip.js」產生於 ' + todayISO() + '\n' +
-      ' * 直接覆蓋 trips/' + TID + '/trip.js 即可。 */\n';
+      ' * 放到 trips/' + TID + '/trip.js 即可（新資料夾請從 trips/_template 複製）。 */\n';
     download('trip.js', head + 'window.TRIP_DATA = ' + JSON.stringify(S.trip, null, 2) + ';\n', 'text/javascript;charset=utf-8');
     toast('已匯出 trip.js，覆蓋回旅程資料夾即可');
   }

@@ -220,7 +220,24 @@ a{color:var(--teal-dk)}
 .altItem span{font-size:12px;color:var(--muted);display:block;margin-top:2px}
 .altItem a{font-size:12.5px;white-space:nowrap;align-self:center}
 
-.empty{text-align:center;color:var(--muted);padding:38px 10px;font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:38px 10px;font-size:14px;line-height:1.7}
+
+/* 上一頁 / 下一頁（切換前後一天） */
+.dayNav{display:flex;gap:11px;margin:26px 0 10px}
+.dayNav__slot{flex:1}
+.dayNav__btn{
+  flex:1;min-width:0;text-align:left;
+  background:var(--card);border-radius:14px;box-shadow:var(--shadow);
+  padding:13px 15px;transition:transform .15s;
+}
+.dayNav__btn:active{transform:scale(.97)}
+.dayNav__btn--next{text-align:right}
+.dayNav__dir{display:block;font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;color:var(--teal-dk);font-weight:700}
+.dayNav__t{display:block;margin-top:5px;font-size:14.5px;font-weight:800;color:var(--navy)}
+.dayNav__s{
+  display:block;margin-top:2px;font-size:12px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 
 /* ---------------- 子頁通用 ---------------- */
 .subBack{margin-bottom:14px}
@@ -443,10 +460,16 @@ a{color:var(--teal-dk)}
 .homeSub{margin:8px 0 0;font-size:13.5px;color:var(--muted);line-height:1.6}
 .homeSub code{background:#F1E7DA;padding:1px 6px;border-radius:5px;font-size:12.5px}
 .home .main{flex:1;padding-top:22px}
+.tripRow{position:relative;margin-bottom:13px}
+.tripDel{
+  position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
+  color:#C7B6A6;font-size:14px;line-height:1;display:grid;place-items:center;
+}
+.tripDel:hover{background:#F6E4D5;color:var(--danger)}
 .tripCard{
   display:flex;align-items:center;gap:14px;text-decoration:none;
   background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
-  padding:16px;margin-bottom:13px;
+  padding:16px;
 }
 .tripCard__emoji{
   width:52px;height:52px;border-radius:15px;flex:0 0 auto;
@@ -459,6 +482,11 @@ a{color:var(--teal-dk)}
 .tripCard__go{color:var(--muted);font-size:20px;flex:0 0 auto}
 .siteFoot__home{margin:14px 0 0;font-size:13px}
 .siteFoot__home a{color:var(--muted);text-decoration:none}
+.homeActs{padding:4px 16px 0}
+.newTripBtn{padding:15px;border-radius:14px;font-size:16px}
+.newTripBtn svg{width:18px;height:18px}
+.homeHint{margin:12px 2px 0;font-size:12.5px;color:var(--muted);line-height:1.7}
+.homeHint code{background:#F1E7DA;padding:1px 5px;border-radius:5px;font-size:11.5px}
 
 /* ---------------- Footer ---------------- */
 .siteFoot{padding:14px 16px calc(96px + var(--safe-b));text-align:center}
