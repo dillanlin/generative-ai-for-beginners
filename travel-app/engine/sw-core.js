@@ -9,6 +9,7 @@ var SHELL = [
   './trip.js',
   './manifest.webmanifest',
   '../../engine/app.js',
+  '../../engine/ai.js',
   '../../engine/styles.css',
   '../../engine/icon.svg',
   '../../engine/icon-maskable.svg',

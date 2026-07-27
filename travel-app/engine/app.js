@@ -1205,6 +1205,212 @@
     });
   }, { passive: true });
 
+  /* ===========================================================
+     對外 API — 給 ai.js（對話助理）用的操作介面
+     所有動作都會寫進本機儲存並重繪畫面。
+     =========================================================== */
+  function findStop(id) {
+    var days = T().days;
+    for (var i = 0; i < days.length; i++) {
+      var it = days[i].items.filter(function (x) { return x.id === id; })[0];
+      if (it) return { item: it, day: days[i], dayIndex: i };
+    }
+    return null;
+  }
+  function dayByNumber(n) { return T().days[(+n || 1) - 1] || null; }
+  function applyStopFields(t, o) {
+    if (o.time != null) t.time = o.time;
+    if (o.cat != null) t.cat = o.cat;
+    if (o.title != null) t.title = o.title;
+    if (o.subtitle !== undefined) t.subtitle = o.subtitle || null;
+    if (o.booked !== undefined) t.booked = o.booked || null;
+    if (o.tip !== undefined) t.tip = o.tip || null;
+    if (o.tel !== undefined) t.tel = o.tel || null;
+    if (o.lat != null && o.lng != null) { t.lat = +o.lat; t.lng = +o.lng; delete t.mapUrl; }
+    if (o.meta !== undefined) {
+      t.meta = Array.isArray(o.meta) && o.meta.length
+        ? o.meta.map(function (m) { return { icon: m.icon || 'clock', text: m.text }; }).filter(function (m) { return m.text; })
+        : null;
+    }
+    return t;
+  }
+
+  window.TripAPI = {
+    version: 1,
+    catList: CAT_LIST,
+    /* 目前完整旅程內容（給 AI 當上下文） */
+    snapshot: function () {
+      var m = M();
+      return {
+        title: m.title, subtitleEn: m.subtitleEn, startDate: m.startDate, endDate: lastDate(),
+        members: members(), currency: m.currency, center: m.center, zoom: m.zoom,
+        footerNote: m.footerNote, weather: { lat: T().weather.lat, lon: T().weather.lon },
+        today: todayISO(),
+        flights: T().flights, car: T().car,
+        shopping: T().shopping.map(function (g) {
+          return { id: g.id, title: g.title, icon: g.icon, tone: g.tone, items: g.items.map(function (i) { return { name: i.name, note: i.note }; }) };
+        }),
+        days: T().days.map(function (d) {
+          return {
+            day: d.n, date: d.date, title: d.title,
+            items: d.items.map(function (i) {
+              return {
+                id: i.id, time: i.time, cat: i.cat, title: i.title, subtitle: i.subtitle,
+                booked: i.booked, tip: i.tip, tel: i.tel,
+                lat: i.lat, lng: i.lng,
+                meta: (i.meta || []).map(function (x) { return x.icon + ': ' + x.text; })
+              };
+            })
+          };
+        })
+      };
+    },
+    addStop: function (o) {
+      var day = dayByNumber(o.day);
+      if (!day) throw new Error('沒有 Day ' + o.day + '（這趟共 ' + T().days.length + ' 天）');
+      if (!o.title) throw new Error('缺少 title');
+      var t = applyStopFields({ id: uid('it') }, o);
+      if (!t.time) t.time = '';
+      day.items.push(t);
+      day.items.sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+      return { id: t.id, day: day.n, title: t.title, time: t.time };
+    },
+    updateStop: function (id, o) {
+      var f = findStop(id);
+      if (!f) throw new Error('找不到 id=' + id + ' 的行程');
+      applyStopFields(f.item, o);
+      f.day.items.sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+      return { id: id, day: f.day.n, title: f.item.title, time: f.item.time };
+    },
+    deleteStop: function (id) {
+      var f = findStop(id);
+      if (!f) throw new Error('找不到 id=' + id + ' 的行程');
+      f.day.items = f.day.items.filter(function (x) { return x.id !== id; });
+      return { deleted: f.item.title, day: f.day.n };
+    },
+    moveStop: function (id, toDay, time) {
+      var f = findStop(id), target = dayByNumber(toDay);
+      if (!f) throw new Error('找不到 id=' + id + ' 的行程');
+      if (!target) throw new Error('沒有 Day ' + toDay);
+      f.day.items = f.day.items.filter(function (x) { return x.id !== id; });
+      if (time) f.item.time = time;
+      target.items.push(f.item);
+      target.items.sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+      return { id: id, title: f.item.title, from: f.day.n, to: target.n, time: f.item.time };
+    },
+    reorderDay: function (n, ids) {
+      var day = dayByNumber(n);
+      if (!day) throw new Error('沒有 Day ' + n);
+      var order = ids || [];
+      day.items.sort(function (a, b) {
+        var ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+        return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+      });
+      return { day: day.n, order: day.items.map(function (i) { return i.title; }) };
+    },
+    setDayTitle: function (n, title) {
+      var day = dayByNumber(n);
+      if (!day) throw new Error('沒有 Day ' + n);
+      day.title = title || '';
+      return { day: day.n, title: day.title };
+    },
+    addDay: function () {
+      T().days.push({ n: T().days.length + 1, date: '', title: '', items: [] });
+      renumberDays();
+      return { days: T().days.length, newDay: T().days.length, date: lastDate() };
+    },
+    deleteDay: function (n) {
+      var days = T().days;
+      if (days.length <= 1) throw new Error('至少要保留一天');
+      var i = (+n || 1) - 1;
+      if (!days[i]) throw new Error('沒有 Day ' + n);
+      var removed = days[i];
+      days.splice(i, 1);
+      renumberDays();
+      if (S.dayIndex >= days.length) S.dayIndex = days.length - 1;
+      return { deleted: 'Day ' + n + ' ' + (removed.title || ''), days: days.length };
+    },
+    setMeta: function (o) {
+      var m = M(), w = T().weather, resized = false;
+      if (o.title) m.title = o.title;
+      if (o.subtitleEn !== undefined) m.subtitleEn = o.subtitleEn;
+      if (o.footerNote !== undefined) m.footerNote = o.footerNote;
+      if (o.members && o.members.length === 2) m.members = o.members;
+      if (o.currency) m.currency = {
+        from: o.currency.from || m.currency.from,
+        to: o.currency.to || m.currency.to,
+        rate: o.currency.rate != null ? +o.currency.rate : m.currency.rate
+      };
+      if (o.center && o.center.length === 2) m.center = [+o.center[0], +o.center[1]];
+      if (o.zoom != null) m.zoom = +o.zoom;
+      if (o.weather && o.weather.lat != null) { w.lat = +o.weather.lat; w.lon = +o.weather.lon; S.wx = null; }
+      if (o.startDate) m.startDate = o.startDate;
+      if (o.endDate) {
+        var span = daysBetween(m.startDate, o.endDate) + 1;
+        if (span < 1) throw new Error('回程日不能早於出發日');
+        resizeDays(span); resized = true;
+      }
+      renumberDays();
+      if (S.dayIndex >= T().days.length) S.dayIndex = Math.max(0, T().days.length - 1);
+      return { title: m.title, startDate: m.startDate, endDate: lastDate(), days: T().days.length, resized: resized };
+    },
+    setFlights: function (o) {
+      var f = T().flights;
+      if (o.airline !== undefined) f.airline = o.airline;
+      if (o.note !== undefined) f.note = o.note;
+      if (Array.isArray(o.legs)) f.legs = o.legs;
+      return { airline: f.airline, legs: f.legs.length };
+    },
+    setCar: function (o) {
+      var c = T().car;
+      if (o.title !== undefined) c.title = o.title;
+      if (o.tel !== undefined) c.tel = o.tel || '';
+      if (Array.isArray(o.rows)) c.rows = o.rows.map(function (r) { return [r[0], r[1]]; });
+      return { title: c.title, rows: c.rows.length };
+    },
+    setShoppingGroup: function (o) {
+      var g = o.id ? T().shopping.filter(function (x) { return x.id === o.id; })[0] : null;
+      var isNew = !g;
+      if (isNew) g = { id: uid('g'), icon: 'bag', tone: 'teal', title: '', items: [] };
+      if (o.title) g.title = o.title;
+      if (o.icon) g.icon = o.icon;
+      if (o.tone) g.tone = o.tone;
+      if (Array.isArray(o.items)) {
+        var old = g.items.slice();
+        g.items = o.items.map(function (it) {
+          var prev = old.filter(function (p) { return p.name === it.name; })[0];
+          return { id: prev ? prev.id : uid('s'), name: it.name, note: it.note || '' };
+        });
+      }
+      if (isNew) T().shopping.push(g);
+      return { id: g.id, title: g.title, items: g.items.length };
+    },
+    deleteShoppingGroup: function (id) {
+      var g = T().shopping.filter(function (x) { return x.id === id; })[0];
+      if (!g) throw new Error('找不到分組 ' + id);
+      T().shopping = T().shopping.filter(function (x) { return x.id !== id; });
+      return { deleted: g.title };
+    },
+    addExpense: function (o) {
+      var mm = members();
+      var amt = parseFloat(o.amount);
+      if (!(amt > 0)) throw new Error('金額要是正數');
+      var payer = mm.indexOf(o.payer) >= 0 ? o.payer : mm[0];
+      var e = {
+        id: uid('e'), date: o.date || todayISO(), title: o.title || '支出',
+        amount: amt, payer: payer, cat: o.cat || '其他',
+        split: ['even', 'other', 'self'].indexOf(o.split) >= 0 ? o.split : 'even'
+      };
+      S.ledger.push(e);
+      store.set(K.ledger, S.ledger);
+      var st = ledgerStats();
+      return { added: e.title, amount: e.amount, settle: Math.round(st.owes) };
+    },
+    /* 一批工具跑完後呼叫：存檔 + 重繪 */
+    commit: function () { persist(); render(); },
+    goDay: function (n) { go('day', { day: Math.max(0, (+n || 1) - 1) }); }
+  };
+
   /* ---------------- 啟動 ---------------- */
   if (!M().rangeLabel && M().startDate) renumberDays();
   initMap();
