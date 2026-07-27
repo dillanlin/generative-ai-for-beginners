@@ -445,6 +445,25 @@ body.ai-open .aiFab,body.ai-open .fab{opacity:0;pointer-events:none}
   font-size:13px;color:var(--muted);padding:5px 10px;border-radius:999px;
   border:1px solid var(--line);background:#fff;
 }
+.aiUsage{
+  position:relative;overflow:hidden;
+  font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--teal-dk);
+  padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;
+}
+.aiUsage::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:var(--pct,0%);
+  background:rgba(47,168,181,.16);
+}
+.aiUsage.is-warn{color:var(--amber-dk)}
+.aiUsage.is-warn::before{background:rgba(246,196,83,.3)}
+.aiUsage.is-over{color:var(--danger);border-color:#EFC9C6}
+.aiUsage.is-over::before{background:rgba(210,84,75,.16);width:100%}
+.aiCost{
+  display:inline-block;font-family:var(--mono);font-size:11.5px;color:#9A8B7C;
+  padding:2px 4px;
+}
+.aiMsg--warn{background:#FDF3DC;color:#5A4515}
+.aiLink{font-size:12px;color:var(--teal-dk);text-decoration:underline;padding:0 2px}
 .aiLog{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
 .aiMsg{
   max-width:82%;padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.65;
@@ -453,6 +472,9 @@ body.ai-open .aiFab,body.ai-open .fab{opacity:0;pointer-events:none}
 .aiMsg--user{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:5px}
 .aiMsg--bot{align-self:flex-start;background:#fff;color:var(--ink);box-shadow:var(--shadow);border-bottom-left-radius:5px}
 .aiMsg--wide{max-width:100%}
+/* 卡片型內容是 HTML，不能沿用泡泡的 pre-wrap，否則模板換行會變成空行 */
+.aiSetup{white-space:normal}
+.aiSetup>b{display:block;font-size:15px;color:var(--navy);margin-bottom:2px}
 .aiMsg--tool{background:transparent;box-shadow:none;padding:0;max-width:100%}
 .aiMsg--err{background:#FBEAE8;color:#8C2F27}
 .aiTool{
@@ -471,6 +493,10 @@ body.ai-open .aiFab,body.ai-open .fab{opacity:0;pointer-events:none}
   background:#F8F2EA;font-size:14px;
 }
 .aiSetup p{margin:8px 0 0;font-size:12.5px;color:var(--muted);line-height:1.7}
+.aiSetup__usage{
+  background:#F1E7DA;border-radius:9px;padding:8px 11px;margin-top:12px!important;
+  font-family:var(--mono);font-size:11.5px;color:#6B5B4C!important;
+}
 .aiSetup__acts{display:flex;gap:8px;margin-top:14px}
 .aiSetup__acts .btn{padding:8px 15px;font-size:13.5px}
 .aiSetup__note{border-top:1px dashed var(--line);padding-top:9px;margin-top:12px!important}

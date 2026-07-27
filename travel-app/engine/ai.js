@@ -11,16 +11,67 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@^0.110.0';
 const $ = (s, r) => (r || document).querySelector(s);
 const KEY_API = 'ai.apiKey.v1';
 const KEY_MODEL = 'ai.model.v1';
+const KEY_BUDGET = 'ai.budgetUSD.v1';
+const KEY_USAGE = 'ai.usage.v1';
+const DEFAULT_BUDGET = 3;
+
+/* 每百萬 token 的美金定價。Sonnet 5 到 2026-08-31 有 $2/$10 的優惠價，
+   這裡刻意用標準價，寧可估貴一點也不要低估。 */
 const MODELS = [
-  { id: 'claude-opus-5', name: 'Claude Opus 5（最聰明，預設）' },
-  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5（比較快、比較省）' }
+  { id: 'claude-opus-5', name: 'Claude Opus 5（最聰明，預設）', in: 5, out: 25 },
+  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5（比較快、比較省）', in: 3, out: 15 }
 ];
+const priceOf = (id) => MODELS.find((m) => m.id === id) || MODELS[0];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v ?? d; } catch { return d; } };
 const set = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const del = (k) => { try { localStorage.removeItem(k); } catch {} };
+
+/* ---------------- 用量與花費（本機估算） ----------------
+   每輪回應的 usage 都會累加起來，換算成美金並跟你設的月上限比較。
+   注意：這只是「這台裝置」的估算，真正的硬性上限請到 Anthropic 後台
+   Billing → Spend limits 設定。 */
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+
+function usage() {
+  let u;
+  try { u = JSON.parse(localStorage.getItem(KEY_USAGE) || 'null'); } catch { u = null; }
+  if (!u || u.month !== thisMonth()) u = { month: thisMonth(), spent: 0, turns: 0, tokIn: 0, tokOut: 0, warned: false };
+  return u;
+}
+function saveUsage(u) { set(KEY_USAGE, JSON.stringify(u)); }
+function budget() { const v = parseFloat(get(KEY_BUDGET, '')); return v > 0 ? v : DEFAULT_BUDGET; }
+
+/* 依 Anthropic 計價換算：快取寫入 1.25×、快取讀取 0.1× 的 input 單價 */
+function costOf(model, u) {
+  const p = priceOf(model);
+  const inp = (u.input_tokens || 0)
+    + (u.cache_creation_input_tokens || 0) * 1.25
+    + (u.cache_read_input_tokens || 0) * 0.1;
+  return (inp * p.in + (u.output_tokens || 0) * p.out) / 1e6;
+}
+function addUsage(model, u) {
+  if (!u) return usage();
+  const cur = usage();
+  cur.spent += costOf(model, u);
+  cur.tokIn += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  cur.tokOut += u.output_tokens || 0;
+  saveUsage(cur);
+  return cur;
+}
+const money = (n) => '$' + (n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(2));
+
+function renderUsage() {
+  const el = $('#aiUsage');
+  if (!el) return;
+  const u = usage(), b = budget(), pct = Math.min(100, Math.round((u.spent / b) * 100));
+  el.textContent = `${money(u.spent)} / ${money(b)}`;
+  el.className = 'aiUsage' + (pct >= 100 ? ' is-over' : pct >= 80 ? ' is-warn' : '');
+  el.style.setProperty('--pct', pct + '%');
+  el.title = `本月 ${u.turns} 輪對話 · 約 ${(u.tokIn / 1000).toFixed(1)}k 輸入 / ${(u.tokOut / 1000).toFixed(1)}k 輸出 token`;
+}
 
 /* ---------------- 工具定義 ---------------- */
 const CATS = (window.TripAPI?.catList) || ['機場', '景點', '午餐', '晚餐', '住宿'];
@@ -260,9 +311,23 @@ function toolLabel(name, input, result) {
   }
 }
 
-/* ---------------- 系統提示 ---------------- */
-function systemPrompt() {
-  const snap = TripAPI.snapshot();
+/* ---------------- 系統提示 ----------------
+   拆成兩塊並各放一個快取斷點：
+   1) 指示（永遠不變）→ 連同前面的 tools 一起快取，每次都命中
+   2) 行程快照（改了才變）→ 沒改動的回合也能命中
+   工具迴圈每一輪都會重送整份 system，快取讓第二輪之後只付 0.1 倍。 */
+function systemBlocks() {
+  return [
+    { type: 'text', text: INSTRUCTIONS, cache_control: { type: 'ephemeral' } },
+    {
+      type: 'text',
+      text: `## 目前這趟旅程（今天是 ${TripAPI.snapshot().today}）\n\`\`\`json\n${JSON.stringify(TripAPI.snapshot(), null, 1)}\n\`\`\``,
+      cache_control: { type: 'ephemeral' }
+    }
+  ];
+}
+
+const INSTRUCTIONS = (() => {
   return `你是這個旅遊行程 App 裡的助理，幫使用者維護一趟旅程的資料。全程用繁體中文（台灣用語）回答。
 
 ## 你能做什麼
@@ -276,12 +341,8 @@ function systemPrompt() {
 - **平行呼叫**：同一輪要做多件事時，一次送出多個工具呼叫，不要一件一件來。
 - **回覆風格**：先講你做了什麼（一兩句），需要注意的事再補充。不要複述整份行程。使用者只是在問問題、沒有要你改東西的時候，就直接回答，不要動資料。
 - 你不能改 App 的程式碼或樣式，只能改這趟旅程的內容。使用者要求改版面配色之類的，請說明這要回到程式碼修改。
-
-## 目前這趟旅程（今天是 ${snap.today}）
-\`\`\`json
-${JSON.stringify(snap, null, 1)}
-\`\`\``;
-}
+- 使用者是自備 API 金鑰、按 token 付費的。回覆不要冗長，也別為了確認不重要的細節反覆發問。`;
+})();
 
 /* ---------------- 聊天面板 ---------------- */
 let history = [];      /* Anthropic messages 陣列 */
@@ -292,6 +353,7 @@ function panelHtml() {
   return `
   <div class="aiPanel__head">
     <span class="aiPanel__title">行程助理</span>
+    <button class="aiUsage" id="aiUsage" data-ai="settings" title="本月用量"></button>
     <button class="aiPanel__act" data-ai="settings" aria-label="設定">⚙</button>
     <button class="aiPanel__act" data-ai="clear" aria-label="清空對話">清空</button>
     <button class="aiPanel__act" data-ai="close" aria-label="關閉">✕</button>
@@ -341,6 +403,7 @@ function openPanel() {
   ensurePanel();
   $('#aiPanel').classList.add('is-open');
   document.body.classList.add('ai-open');
+  renderUsage();
   if (!$('#aiLog').children.length) greet();
   setTimeout(() => $('#aiInput')?.focus(), 220);
 }
@@ -375,45 +438,85 @@ function greet() {
   }, { once: true });
 }
 
-/* ---------------- 設定（API 金鑰／模型） ---------------- */
+/* ---------------- 設定（金鑰／模型／用量上限） ---------------- */
 function showSettings(first) {
   const key = get(KEY_API, '');
   const model = get(KEY_MODEL, MODELS[0].id);
+  const u = usage(), b = budget();
   const el = bubble('bot', `
     <div class="aiSetup">
       <b>${first ? '先設定一次就好' : 'AI 設定'}</b>
       <p>這個助理會用<b>你自己的</b> Anthropic API 金鑰，直接從這台裝置的瀏覽器呼叫 Claude。
       金鑰只存在這台裝置的瀏覽器裡，不會上傳到別的地方，也不會進到 GitHub。</p>
+
       <label for="aiKey">API 金鑰</label>
       <input id="aiKey" type="password" placeholder="sk-ant-..." value="${esc(key)}" autocomplete="off" />
+
       <label for="aiModel">模型</label>
       <select id="aiModel">
         ${MODELS.map((m) => `<option value="${m.id}"${m.id === model ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
       </select>
+
+      <label for="aiBudget">每月用量上限（美金）</label>
+      <input id="aiBudget" type="number" step="0.5" min="0.5" value="${b}" inputmode="decimal" />
+      <p class="aiSetup__usage">本月已用 <b>${money(u.spent)}</b> · ${u.turns} 輪對話 ·
+        ${(u.tokIn / 1000).toFixed(1)}k 輸入 / ${(u.tokOut / 1000).toFixed(1)}k 輸出 token
+        <button class="aiLink" data-ai="reset-usage">歸零</button></p>
+
       <div class="aiSetup__acts">
         <button class="btn btn--primary" data-ai="save">儲存</button>
         ${key ? '<button class="btn btn--danger" data-ai="forget">清除金鑰</button>' : ''}
       </div>
-      <p class="aiSetup__note">在 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> 建立金鑰。
-      建議建一把<b>專用</b>的並設定用量上限；覺得外洩就到後台撤銷。</p>
+
+      <p class="aiSetup__note">在 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
+      建立金鑰，建議建一把<b>專用</b>的。<br>
+      ⚠️ 上面這個上限只是<b>這台裝置的本機估算</b>，換裝置、換瀏覽器或清掉資料就會重算，也擋不住別的程式用同一把金鑰。
+      真正的硬性上限請到後台
+      <a href="https://console.anthropic.com/settings/limits" target="_blank" rel="noopener">Billing → Spend limits</a> 設定 —— 那個才是真的會斷。</p>
     </div>`, 'aiMsg--wide');
 
   el.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-ai]');
-    if (!b) return;
-    if (b.dataset.ai === 'save') {
+    const btn = ev.target.closest('[data-ai]');
+    if (!btn) return;
+    if (btn.dataset.ai === 'save') {
       const v = $('#aiKey', el).value.trim();
       if (!v) { alert('請貼上 API 金鑰'); return; }
+      const bv = parseFloat($('#aiBudget', el).value);
       set(KEY_API, v);
       set(KEY_MODEL, $('#aiModel', el).value);
+      if (bv > 0) set(KEY_BUDGET, String(bv));
       client = null;
-      el.innerHTML = '<b>已儲存 ✓</b><br>可以開始了，直接在下面打字跟我說要改什麼。';
+      renderUsage();
+      el.innerHTML = `<b>已儲存 ✓</b><br>上限 ${money(budget())} / 月。直接在下面打字跟我說要改什麼。`;
     }
-    if (b.dataset.ai === 'forget') {
+    if (btn.dataset.ai === 'forget') {
       del(KEY_API); client = null;
       el.innerHTML = '金鑰已清除。';
     }
+    if (btn.dataset.ai === 'reset-usage') {
+      const cur = usage(); cur.spent = 0; cur.turns = 0; cur.tokIn = 0; cur.tokOut = 0; cur.warned = false;
+      saveUsage(cur); renderUsage();
+      btn.outerHTML = '已歸零';
+    }
   });
+}
+
+/* 超過上限時擋下來，並請使用者回 Claude Code 對話改行程 */
+function budgetBlocked() {
+  const u = usage(), b = budget();
+  if (u.spent < b) return false;
+  bubble('bot', `
+    <div class="aiSetup">
+      <b>已達本月用量上限</b>
+      <p>本月已用約 <b>${money(u.spent)}</b>，超過你設的 ${money(b)}。為了不讓費用繼續往上跑，我先停在這裡。</p>
+      <p>要繼續的話，兩個選擇：</p>
+      <p>① <b>回 Claude Code 的對話</b>，直接跟它說要改什麼行程 —— 那邊不會用到你的 API 額度。<br>
+         ② 按下面調高上限（記得後台的 spend limit 也要跟著調）。</p>
+      <div class="aiSetup__acts">
+        <button class="btn btn--primary" data-ai="settings">調整上限</button>
+      </div>
+    </div>`, 'aiMsg--wide');
+  return true;
 }
 
 function getClient() {
@@ -434,6 +537,7 @@ async function send(text) {
   if (busy) return;
   const c = getClient();
   if (!c) { bubble('bot', '還沒設定 API 金鑰。'); showSettings(true); return; }
+  if (budgetBlocked()) return;
 
   busy = true;
   $('#aiPanel').classList.add('is-busy');
@@ -441,6 +545,7 @@ async function send(text) {
   history.push({ role: 'user', content: text });
 
   const model = get(KEY_MODEL, MODELS[0].id);
+  const startSpent = usage().spent;
   let answer = null;      /* 目前這輪的文字泡泡 */
   let acted = false;
 
@@ -450,7 +555,7 @@ async function send(text) {
       const stream = c.messages.stream({
         model,
         max_tokens: 16000,
-        system: systemPrompt(),
+        system: systemBlocks(),
         tools: TOOLS,
         messages: history
       });
@@ -464,6 +569,8 @@ async function send(text) {
       });
 
       const msg = await stream.finalMessage();
+      addUsage(model, msg.usage);
+      renderUsage();
 
       if (msg.stop_reason === 'refusal') {
         bubble('bot', '這個請求被安全機制擋下來了，換個問法試試。', 'aiMsg--err');
@@ -510,6 +617,19 @@ async function send(text) {
   } finally {
     busy = false;
     $('#aiPanel')?.classList.remove('is-busy');
+
+    /* 這輪花了多少，以及 80% / 100% 提醒 */
+    const u = usage(), b = budget();
+    u.turns += 1; saveUsage(u); renderUsage();
+    const spentNow = u.spent - startSpent;
+    if (spentNow > 0) bubble('bot', `<span class="aiCost">這輪約 ${money(spentNow)}　·　本月 ${money(u.spent)} / ${money(b)}</span>`, 'aiMsg--tool');
+
+    if (u.spent >= b) {
+      bubble('bot', `已達本月上限 ${money(b)}，我先停在這裡。要繼續請<b>回 Claude Code 的對話</b>跟它說要改什麼（不花 API 額度），或按 ⚙ 調高上限。`, 'aiMsg--err');
+    } else if (!u.warned && u.spent >= b * 0.8) {
+      u.warned = true; saveUsage(u);
+      bubble('bot', `提醒：本月已用掉上限的 ${Math.round((u.spent / b) * 100)}%（${money(u.spent)} / ${money(b)}）。剩下的改動可以留到 Claude Code 對話那邊做。`, 'aiMsg--warn');
+    }
     scroll();
   }
 }
