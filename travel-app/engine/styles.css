@@ -475,6 +475,10 @@ body.ai-open .aiFab,body.ai-open .fab{opacity:0;pointer-events:none}
 /* 卡片型內容是 HTML，不能沿用泡泡的 pre-wrap，否則模板換行會變成空行 */
 .aiSetup{white-space:normal}
 .aiSetup>b{display:block;font-size:15px;color:var(--navy);margin-bottom:2px}
+.aiMsg--err .aiSetup>b{color:#8C2F27}
+.aiMsg--err .aiSetup p{color:#7A3A34}
+.aiMsg--err .aiSetup a{color:#8C2F27;font-weight:700}
+.aiMsg--err .aiSetup__note{border-top-color:#EFC9C6}
 .aiMsg--tool{background:transparent;box-shadow:none;padding:0;max-width:100%}
 .aiMsg--err{background:#FBEAE8;color:#8C2F27}
 .aiTool{

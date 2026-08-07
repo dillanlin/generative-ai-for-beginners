@@ -637,7 +637,7 @@ async function send(text) {
 
     if (acted) TripAPI.commit();
   } catch (e) {
-    bubble('bot', esc(friendlyError(e)), 'aiMsg--err');
+    showError(e);
   } finally {
     busy = false;
     $('#aiPanel')?.classList.remove('is-busy');
@@ -658,15 +658,45 @@ async function send(text) {
   }
 }
 
-function friendlyError(e) {
-  const s = e?.status;
-  if (s === 401) return '金鑰無效或已被撤銷，請到設定（⚙）重新貼一次。';
-  if (s === 403) return '這把金鑰沒有權限使用這個模型。';
-  if (s === 429) return '被限流了，等一下再試。';
-  if (s === 400) return '請求被拒絕：' + (e?.message || '參數有問題');
-  if (s >= 500) return 'Anthropic 伺服器暫時有狀況，稍後再試。';
-  if (/fetch|network|Failed to fetch/i.test(e?.message || '')) return '連不到 API，檢查一下網路。';
-  return '出錯了：' + (e?.message || e);
+/* SDK 的 APIError 會把整包 JSON 塞進 message，這裡挖出人看得懂的那一句 */
+function apiMessage(e) {
+  const m = e?.error?.error?.message || e?.error?.message;
+  if (m) return m;
+  const s = String(e?.message || '');
+  const hit = /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(s);
+  if (hit) { try { return JSON.parse('"' + hit[1] + '"'); } catch { return hit[1]; } }
+  return s;
+}
+
+function showError(e) {
+  const status = e?.status;
+  const msg = apiMessage(e);
+
+  /* 帳戶沒有 API 餘額 —— 最常見的卡關點，值得好好講清楚 */
+  if (/credit balance/i.test(msg) || /billing/i.test(msg)) {
+    bubble('bot', `
+      <div class="aiSetup">
+        <b>API 帳戶沒有餘額</b>
+        <p>金鑰是對的、請求也送到 Anthropic 了，但這個帳戶目前沒有可用的 API 額度。</p>
+        <p>⚠️ 最常見的原因：<b>Claude.ai 的訂閱（Pro / Max）跟 API 額度是分開的兩件事</b> ——
+        有訂閱不代表有 API 額度，API 要另外儲值。</p>
+        <p>到 <a href="https://console.anthropic.com/settings/billing" target="_blank" rel="noopener">Console → Plans &amp; Billing</a>
+        買一點 credits（最低 $5 就能用很久，這個 App 一輪對話大約 $0.03–0.08），儲值完直接回來重送即可，不用重設金鑰。</p>
+        <p class="aiSetup__note">順便建議在同一頁把 <b>Spend limits</b> 設好，就有硬性的花費上限了。</p>
+      </div>`, 'aiMsg--err aiMsg--wide');
+    return;
+  }
+
+  let text;
+  if (status === 401) text = '金鑰無效或已被撤銷，請按 ⚙ 重新貼一次。';
+  else if (status === 403) text = '這把金鑰沒有權限使用這個模型：' + msg;
+  else if (status === 429) text = '被限流了，等一分鐘再試。';
+  else if (status === 404) text = '找不到這個模型，請按 ⚙ 換一個。';
+  else if (status >= 500) text = 'Anthropic 伺服器暫時有狀況，稍後再試。';
+  else if (/Failed to fetch|NetworkError|network/i.test(msg)) text = '連不到 API，檢查一下網路。';
+  else text = (status ? `請求被拒絕（${status}）：` : '出錯了：') + (msg || e);
+
+  bubble('bot', esc(text), 'aiMsg--err');
 }
 
 /* ---------------- 啟動 ---------------- */
