@@ -185,9 +185,25 @@ python3 -m http.server 8080
 **它能改什麼**：行程停點（新增／修改／刪除／搬移／重排）、每天主題、天數、旅程基本資料（標題、日期、成員、幣別匯率、**地圖中心與縮放**、天氣座標）、航班、交通住宿、必買清單、記帳。
 **它不能改**：App 本身的程式碼與版面樣式 —— 那還是要回到 `engine/` 改檔案。
 
-### 設定金鑰
+### 兩種供應商：付費 or 免費
 
-第一次打開會要你貼上 Anthropic API 金鑰（[console.anthropic.com](https://console.anthropic.com/settings/keys) 建立），之後按 ⚙ 可以改金鑰或換模型（Claude Opus 5 預設／Claude Sonnet 5 較快較省）。
+按 ⚙ 可以選，兩邊的工具與功能完全一樣：
+
+| | Anthropic | Google Gemini |
+|---|---|---|
+| 費用 | 付費，帳戶要有 credits | **有真正的免費層，不用信用卡** |
+| 模型 | Claude Opus 5 / Sonnet 5 | Gemini 2.5 Flash / Pro |
+| 拿金鑰 | [console.anthropic.com](https://console.anthropic.com/settings/keys) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| 限制 | 花費（App 內有月上限） | 次數（每分鐘／每天，超過回 429） |
+| 隱私 | 不會用於訓練 | ⚠️ **免費層的內容可能被用來改進模型** |
+
+> ⚠️ **Anthropic 的 API 額度跟 Claude.ai 的訂閱（Pro / Max）是分開的兩件事** —— 有訂閱不代表有 API 額度，API 要另外儲值。餘額不足時 App 會直接顯示這段說明。
+>
+> ⚠️ Gemini 免費層要留意：這個 App 每輪都會把**整份行程**（含飯店、訂位編號、同行者名字）當上下文送出去。介意的話請用付費的供應商。
+
+換供應商會清空對話紀錄（兩家的訊息格式不同），行程資料不受影響。
+
+Gemini 走 REST + SSE 直連瀏覽器（刻意用 `?key=` 而非自訂標頭，減少被 CORS 擋的機會）。如果你的網路環境還是被擋，就需要架一個小代理（Cloudflare Worker 免費層就夠）—— App 會明確告訴你是這個狀況。
 
 ### ⚠️ 安全性 —— 請先讀完
 
@@ -204,6 +220,8 @@ python3 -m http.server 8080
 ### 用量上限
 
 面板標題列有一顆用量藥丸（`$0.12 / $3.00`），底色會隨進度變色；每輪對話結束也會顯示「這輪約 $0.0X」。
+
+（**只適用於 Anthropic**。Gemini 免費層不計費，藥丸會改顯示「免費 · N 輪」，額度限制是次數不是錢。）
 
 - **預設每月上限 $3**，在 ⚙ 可以改。每月 1 號自動歸零，也能手動歸零。
 - 用到 **80%** 跳一次提醒。
@@ -230,8 +248,10 @@ python3 -m http.server 8080
 
 ## 相依套件
 
-地圖用 [Leaflet 1.9.4](https://leafletjs.com/)（unpkg CDN，含 SRI 雜湊）；行程助理用官方
-[`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript)（esm.sh，只在打開助理時才會用到）。
+地圖用 [Leaflet 1.9.4](https://leafletjs.com/)（unpkg CDN，含 SRI 雜湊）。
+行程助理選 Anthropic 時會用官方 [`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript)（esm.sh，**動態載入**，只在真的送出訊息時才抓）；選 Gemini 時走原生 `fetch`，不需要任何套件。
+
+> `ai.js` 的 SDK 一定要用動態 `import()`。改回頂層 static import 的話，只要 CDN 載不到，整個模組就不執行 —— 連聊天按鈕都不會出現，而且畫面上不會有任何錯誤。
 想完全離線自帶的話，把 `leaflet.js` / `leaflet.css` / `images/` 放到 `engine/vendor/`，
 再改掉各旅程 `index.html` 的兩個路徑即可。
 地圖圖磚來自 OpenStreetMap，天氣來自 Open-Meteo，兩者都不需要 API key。

@@ -458,6 +458,7 @@ body.ai-open .aiFab,body.ai-open .fab{opacity:0;pointer-events:none}
 .aiUsage.is-warn::before{background:rgba(246,196,83,.3)}
 .aiUsage.is-over{color:var(--danger);border-color:#EFC9C6}
 .aiUsage.is-over::before{background:rgba(210,84,75,.16);width:100%}
+.aiUsage.is-free{color:var(--ok)}
 .aiCost{
   display:inline-block;font-family:var(--mono);font-size:11.5px;color:#9A8B7C;
   padding:2px 4px;

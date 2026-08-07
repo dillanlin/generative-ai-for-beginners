@@ -22,19 +22,54 @@ async function loadSDK() {
 }
 
 const $ = (s, r) => (r || document).querySelector(s);
-const KEY_API = 'ai.apiKey.v1';
+const KEY_API = 'ai.apiKey.v1';          /* Anthropic 金鑰 */
+const KEY_GKEY = 'ai.geminiKey.v1';      /* Google Gemini 金鑰 */
+const KEY_PROVIDER = 'ai.provider.v1';
 const KEY_MODEL = 'ai.model.v1';
 const KEY_BUDGET = 'ai.budgetUSD.v1';
 const KEY_USAGE = 'ai.usage.v1';
 const DEFAULT_BUDGET = 3;
 
-/* 每百萬 token 的美金定價。Sonnet 5 到 2026-08-31 有 $2/$10 的優惠價，
-   這裡刻意用標準價，寧可估貴一點也不要低估。 */
-const MODELS = [
-  { id: 'claude-opus-5', name: 'Claude Opus 5（最聰明，預設）', in: 5, out: 25 },
-  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5（比較快、比較省）', in: 3, out: 15 }
-];
-const priceOf = (id) => MODELS.find((m) => m.id === id) || MODELS[0];
+/* 兩家供應商。Anthropic 走官方 SDK（按 token 付費）；
+   Gemini 走 REST（有真正的免費層，不用信用卡）。
+   in/out 是每百萬 token 的美金定價，免費層填 0。
+   Sonnet 5 到 2026-08-31 有優惠價，這裡用標準價，寧可估貴不要低估。 */
+const PROVIDERS = {
+  anthropic: {
+    label: 'Anthropic（付費，要儲值）',
+    keyStore: KEY_API,
+    keyHint: 'sk-ant-...',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    paid: true,
+    models: [
+      { id: 'claude-opus-5', name: 'Claude Opus 5（最聰明）', in: 5, out: 25 },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5（快、省）', in: 3, out: 15 }
+    ]
+  },
+  gemini: {
+    label: 'Google Gemini（免費層，不用信用卡）',
+    keyStore: KEY_GKEY,
+    keyHint: 'AIza...',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    paid: false,
+    models: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash（免費層，推薦）', in: 0, out: 0 },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro（較聰明，免費額度更少）', in: 0, out: 0 }
+    ]
+  }
+};
+
+const provider = () => (PROVIDERS[get(KEY_PROVIDER, '')] ? get(KEY_PROVIDER) : 'anthropic');
+const conf = () => PROVIDERS[provider()];
+const apiKey = () => get(conf().keyStore, '');
+function modelId() {
+  const saved = get(KEY_MODEL, '');
+  return conf().models.some((m) => m.id === saved) ? saved : conf().models[0].id;
+}
+const priceOf = (id) => {
+  for (const p of Object.values(PROVIDERS)) { const m = p.models.find((x) => x.id === id); if (m) return m; }
+  return PROVIDERS.anthropic.models[0];
+};
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -57,20 +92,19 @@ function usage() {
 function saveUsage(u) { set(KEY_USAGE, JSON.stringify(u)); }
 function budget() { const v = parseFloat(get(KEY_BUDGET, '')); return v > 0 ? v : DEFAULT_BUDGET; }
 
-/* 依 Anthropic 計價換算：快取寫入 1.25×、快取讀取 0.1× 的 input 單價 */
+/* 吃 adapter 正規化後的 {in, out, cw, cr}（cw=快取寫入、cr=快取讀取）。
+   計價：快取寫入 1.25×、快取讀取 0.1× 的 input 單價。 */
 function costOf(model, u) {
   const p = priceOf(model);
-  const inp = (u.input_tokens || 0)
-    + (u.cache_creation_input_tokens || 0) * 1.25
-    + (u.cache_read_input_tokens || 0) * 0.1;
-  return (inp * p.in + (u.output_tokens || 0) * p.out) / 1e6;
+  const inp = (u.in || 0) + (u.cw || 0) * 1.25 + (u.cr || 0) * 0.1;
+  return (inp * p.in + (u.out || 0) * p.out) / 1e6;
 }
 function addUsage(model, u) {
   if (!u) return usage();
   const cur = usage();
   cur.spent += costOf(model, u);
-  cur.tokIn += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
-  cur.tokOut += u.output_tokens || 0;
+  cur.tokIn += (u.in || 0) + (u.cw || 0) + (u.cr || 0);
+  cur.tokOut += u.out || 0;
   saveUsage(cur);
   return cur;
 }
@@ -79,7 +113,16 @@ const money = (n) => '$' + (n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(2));
 function renderUsage() {
   const el = $('#aiUsage');
   if (!el) return;
-  const u = usage(), b = budget(), pct = Math.min(100, Math.round((u.spent / b) * 100));
+  const u = usage();
+  /* 免費層沒有花費可算，改顯示用了幾輪／多少 token */
+  if (!conf().paid) {
+    el.textContent = `免費 · ${u.turns} 輪`;
+    el.className = 'aiUsage is-free';
+    el.style.setProperty('--pct', '0%');
+    el.title = `本月 ${u.turns} 輪對話 · 約 ${((u.tokIn + u.tokOut) / 1000).toFixed(1)}k token（免費層依每分鐘／每日次數限制，不計費）`;
+    return;
+  }
+  const b = budget(), pct = Math.min(100, Math.round((u.spent / b) * 100));
   el.textContent = `${money(u.spent)} / ${money(b)}`;
   el.className = 'aiUsage' + (pct >= 100 ? ' is-over' : pct >= 80 ? ' is-warn' : '');
   el.style.setProperty('--pct', pct + '%');
@@ -437,7 +480,7 @@ function bubble(role, html, cls) {
 function scroll() { const l = $('#aiLog'); if (l) l.scrollTop = l.scrollHeight; }
 
 function greet() {
-  if (!get(KEY_API)) { showSettings(true); return; }
+  if (!apiKey()) { showSettings(true); return; }
   const t = TripAPI.snapshot();
   bubble('bot', `嗨，我可以直接幫你改「${esc(t.title)}」的行程。試試看：
     <div class="aiHints">
@@ -452,41 +495,75 @@ function greet() {
 }
 
 /* ---------------- 設定（金鑰／模型／用量上限） ---------------- */
-function showSettings(first) {
-  const key = get(KEY_API, '');
-  const model = get(KEY_MODEL, MODELS[0].id);
+function settingsHtml(first) {
+  const pid = provider(), c = PROVIDERS[pid];
+  const key = apiKey(), model = modelId();
   const u = usage(), b = budget();
-  const el = bubble('bot', `
+
+  const paidBits = c.paid ? `
+      <label for="aiBudget">每月用量上限（美金）</label>
+      <input id="aiBudget" type="number" step="0.5" min="0.5" value="${b}" inputmode="decimal" />
+      <p class="aiSetup__usage">本月已用 <b>${money(u.spent)}</b> · ${u.turns} 輪 ·
+        ${(u.tokIn / 1000).toFixed(1)}k 入 / ${(u.tokOut / 1000).toFixed(1)}k 出
+        <button class="aiLink" data-ai="reset-usage">歸零</button></p>` : `
+      <p class="aiSetup__usage">免費層不計費，改以次數限制（每分鐘／每天）。
+        本月已用 ${u.turns} 輪 · ${((u.tokIn + u.tokOut) / 1000).toFixed(1)}k token
+        <button class="aiLink" data-ai="reset-usage">歸零</button></p>`;
+
+  const note = c.paid ? `
+      <p class="aiSetup__note">在 <a href="${c.keyUrl}" target="_blank" rel="noopener">Anthropic Console</a> 建立金鑰，
+      建議建一把<b>專用</b>的。這是付費 API，帳戶要有 credits（跟 Claude.ai 訂閱是分開的）。<br>
+      ⚠️ 上面的上限只是<b>本機估算</b>，真正會斷的請到
+      <a href="https://console.anthropic.com/settings/limits" target="_blank" rel="noopener">Billing → Spend limits</a> 設。</p>` : `
+      <p class="aiSetup__note">在 <a href="${c.keyUrl}" target="_blank" rel="noopener">Google AI Studio</a> 按
+      「Create API key」，<b>不用信用卡</b>，拿到後貼上面即可。<br>
+      ⚠️ Google 的免費層<b>可能會用你送出的內容改進模型</b>。這個 App 會把整份行程（含飯店、訂位編號、同行者名字）當上下文送出去 ——
+      介意的話請改用付費的供應商。<br>
+      免費層有每分鐘／每天的次數限制，用超過會回 429，等一下或隔天再試就好。</p>`;
+
+  return `
     <div class="aiSetup">
       <b>${first ? '先設定一次就好' : 'AI 設定'}</b>
-      <p>這個助理會用<b>你自己的</b> Anthropic API 金鑰，直接從這台裝置的瀏覽器呼叫 Claude。
-      金鑰只存在這台裝置的瀏覽器裡，不會上傳到別的地方，也不會進到 GitHub。</p>
+      <p>助理用<b>你自己的</b>金鑰，直接從這台裝置的瀏覽器呼叫模型。金鑰只存在這台裝置，不會上傳到別處，也不會進到 GitHub。</p>
+
+      <label for="aiProvider">供應商</label>
+      <select id="aiProvider">
+        ${Object.entries(PROVIDERS).map(([k, v]) =>
+          `<option value="${k}"${k === pid ? ' selected' : ''}>${esc(v.label)}</option>`).join('')}
+      </select>
 
       <label for="aiKey">API 金鑰</label>
-      <input id="aiKey" type="password" placeholder="sk-ant-..." value="${esc(key)}" autocomplete="off" />
+      <input id="aiKey" type="password" placeholder="${c.keyHint}" value="${esc(key)}" autocomplete="off" />
 
       <label for="aiModel">模型</label>
       <select id="aiModel">
-        ${MODELS.map((m) => `<option value="${m.id}"${m.id === model ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
+        ${c.models.map((m) => `<option value="${m.id}"${m.id === model ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
       </select>
-
-      <label for="aiBudget">每月用量上限（美金）</label>
-      <input id="aiBudget" type="number" step="0.5" min="0.5" value="${b}" inputmode="decimal" />
-      <p class="aiSetup__usage">本月已用 <b>${money(u.spent)}</b> · ${u.turns} 輪對話 ·
-        ${(u.tokIn / 1000).toFixed(1)}k 輸入 / ${(u.tokOut / 1000).toFixed(1)}k 輸出 token
-        <button class="aiLink" data-ai="reset-usage">歸零</button></p>
-
+      ${paidBits}
       <div class="aiSetup__acts">
         <button class="btn btn--primary" data-ai="save">儲存</button>
         ${key ? '<button class="btn btn--danger" data-ai="forget">清除金鑰</button>' : ''}
       </div>
+      ${note}
+    </div>`;
+}
 
-      <p class="aiSetup__note">在 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>
-      建立金鑰，建議建一把<b>專用</b>的。<br>
-      ⚠️ 上面這個上限只是<b>這台裝置的本機估算</b>，換裝置、換瀏覽器或清掉資料就會重算，也擋不住別的程式用同一把金鑰。
-      真正的硬性上限請到後台
-      <a href="https://console.anthropic.com/settings/limits" target="_blank" rel="noopener">Billing → Spend limits</a> 設定 —— 那個才是真的會斷。</p>
-    </div>`, 'aiMsg--wide');
+function showSettings(first) {
+  const el = bubble('bot', settingsHtml(first), 'aiMsg--wide');
+
+  /* 換供應商就立刻重畫表單（金鑰欄位、模型清單、說明都不一樣） */
+  el.addEventListener('change', (ev) => {
+    if (ev.target.id !== 'aiProvider') return;
+    const before = provider();
+    set(KEY_PROVIDER, ev.target.value);
+    if (before !== ev.target.value) {
+      del(KEY_MODEL);          /* 舊模型 ID 在新供應商不存在 */
+      client = null;
+      if (history.length) { history = []; bubble('bot', '換了供應商，對話紀錄已清空（兩家的訊息格式不同）。'); }
+    }
+    el.innerHTML = settingsHtml(false);
+    renderUsage();
+  });
 
   el.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-ai]');
@@ -494,16 +571,18 @@ function showSettings(first) {
     if (btn.dataset.ai === 'save') {
       const v = $('#aiKey', el).value.trim();
       if (!v) { alert('請貼上 API 金鑰'); return; }
-      const bv = parseFloat($('#aiBudget', el).value);
-      set(KEY_API, v);
+      set(conf().keyStore, v);
       set(KEY_MODEL, $('#aiModel', el).value);
-      if (bv > 0) set(KEY_BUDGET, String(bv));
+      const bEl = $('#aiBudget', el);
+      if (bEl && parseFloat(bEl.value) > 0) set(KEY_BUDGET, String(parseFloat(bEl.value)));
       client = null;
       renderUsage();
-      el.innerHTML = `<b>已儲存 ✓</b><br>上限 ${money(budget())} / 月。直接在下面打字跟我說要改什麼。`;
+      el.innerHTML = conf().paid
+        ? `<b>已儲存 ✓</b><br>${esc(modelId())}，上限 ${money(budget())} / 月。直接在下面打字跟我說要改什麼。`
+        : `<b>已儲存 ✓</b><br>${esc(modelId())}（免費層）。直接在下面打字跟我說要改什麼。`;
     }
     if (btn.dataset.ai === 'forget') {
-      del(KEY_API); client = null;
+      del(conf().keyStore); client = null;
       el.innerHTML = '金鑰已清除。';
     }
     if (btn.dataset.ai === 'reset-usage') {
@@ -516,6 +595,7 @@ function showSettings(first) {
 
 /* 超過上限時擋下來，並請使用者回 Claude Code 對話改行程 */
 function budgetBlocked() {
+  if (!conf().paid) return false;   /* 免費層沒有花費，靠的是次數限制 */
   const u = usage(), b = budget();
   if (u.spent < b) return false;
   bubble('bot', `
@@ -532,8 +612,17 @@ function budgetBlocked() {
   return true;
 }
 
+/* ===========================================================
+   供應商轉接層
+   兩家的訊息格式差很多，所以 history 直接存「該供應商的原生格式」，
+   換供應商時清空對話（switchProvider 會處理）。每個 adapter 回傳同一種
+   形狀，上面的工具迴圈就不用管是哪一家。
+     { native, toolCalls:[{id,name,input}], usage:{in,out,cw,cr}, stop }
+   =========================================================== */
+
+/* ---- Anthropic ---- */
 async function getClient() {
-  const key = get(KEY_API);
+  const key = apiKey();
   if (!key) return null;
   if (!client) {
     const Anthropic = await loadSDK();
@@ -546,76 +635,196 @@ async function getClient() {
   return client;
 }
 
+async function anthropicTurn({ model, history, onText }) {
+  const c = await getClient();
+  const stream = c.messages.stream({
+    model, max_tokens: 16000, system: systemBlocks(), tools: TOOLS, messages: history
+  });
+  stream.on('text', onText);
+  const msg = await stream.finalMessage();
+  const u = msg.usage || {};
+  return {
+    native: { role: 'assistant', content: msg.content },
+    toolCalls: msg.content.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, input: b.input || {} })),
+    usage: { in: u.input_tokens || 0, out: u.output_tokens || 0, cw: u.cache_creation_input_tokens || 0, cr: u.cache_read_input_tokens || 0 },
+    stop: msg.stop_reason === 'refusal' ? 'refusal' : (msg.stop_reason === 'tool_use' ? 'tool' : 'end')
+  };
+}
+const anthropicToolResults = (results) => ({
+  role: 'user',
+  content: results.map((r) => ({ type: 'tool_result', tool_use_id: r.id, content: JSON.stringify(r.payload), is_error: r.isError }))
+});
+
+/* ---- Google Gemini ----
+   REST + SSE。刻意用 ?key= 而不是自訂標頭，preflight 才不會多帶
+   Access-Control-Request-Headers，減少被 CORS 擋掉的機會。 */
+const GEMINI_HOST = 'https://generativelanguage.googleapis.com/v1beta';
+
+/* Anthropic 的 input_schema 是完整 JSON Schema，Gemini 只吃 OpenAPI 子集：
+   type 要大寫、additionalProperties 之類的欄位要拿掉。 */
+function toGeminiSchema(s) {
+  if (!s || typeof s !== 'object') return undefined;
+  const out = {};
+  if (s.type) out.type = String(s.type).toUpperCase();
+  if (s.description) out.description = s.description;
+  if (s.enum) out.enum = s.enum.map(String);
+  if (s.items) out.items = toGeminiSchema(s.items);
+  if (s.properties) {
+    out.properties = {};
+    for (const [k, v] of Object.entries(s.properties)) out.properties[k] = toGeminiSchema(v);
+  }
+  if (Array.isArray(s.required) && s.required.length) out.required = s.required;
+  return out;
+}
+const geminiTools = () => [{
+  functionDeclarations: TOOLS.map((t) => {
+    const d = { name: t.name, description: t.description };
+    const p = toGeminiSchema(t.input_schema);
+    /* 無參數的工具要整個省略 parameters，送空 OBJECT 會被打回 */
+    if (p && p.properties && Object.keys(p.properties).length) d.parameters = p;
+    return d;
+  })
+}];
+
+async function geminiTurn({ model, history, onText }) {
+  const sys = systemBlocks().map((b) => b.text).join('\n\n');
+  const res = await fetch(
+    `${GEMINI_HOST}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey())}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: history,
+        tools: geminiTools(),
+        generationConfig: { maxOutputTokens: 8192 }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    let body = '';
+    try { body = await res.text(); } catch {}
+    const err = new Error(`${res.status} ${body}`);
+    err.status = res.status;
+    try { err.error = JSON.parse(body); } catch {}
+    throw err;
+  }
+
+  /* SSE：一行一個 data:，每筆是一份 GenerateContentResponse */
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', parts = [], usage = { in: 0, out: 0, cw: 0, cr: 0 }, finish = '';
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      if (!raw || raw === '[DONE]') continue;
+      let chunk;
+      try { chunk = JSON.parse(raw); } catch { continue; }
+
+      const cand = chunk.candidates && chunk.candidates[0];
+      for (const p of (cand && cand.content && cand.content.parts) || []) {
+        if (p.text) { onText(p.text); parts.push({ text: p.text }); }
+        else if (p.functionCall) parts.push({ functionCall: p.functionCall });
+      }
+      if (cand && cand.finishReason) finish = cand.finishReason;
+      const um = chunk.usageMetadata;
+      if (um) {
+        usage.in = um.promptTokenCount || 0;
+        usage.out = (um.candidatesTokenCount || 0) + (um.thoughtsTokenCount || 0);
+        usage.cr = um.cachedContentTokenCount || 0;
+      }
+    }
+  }
+
+  const calls = parts.filter((p) => p.functionCall);
+  return {
+    native: { role: 'model', parts: parts.length ? parts : [{ text: '' }] },
+    toolCalls: calls.map((p, i) => ({ id: `${p.functionCall.name}-${i}`, name: p.functionCall.name, input: p.functionCall.args || {} })),
+    usage,
+    stop: calls.length ? 'tool' : (finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT' ? 'refusal' : 'end')
+  };
+}
+const geminiToolResults = (results) => ({
+  role: 'user',
+  parts: results.map((r) => ({ functionResponse: { name: r.name, response: { result: r.payload } } }))
+});
+
+const ADAPTERS = {
+  anthropic: { turn: anthropicTurn, toolResults: anthropicToolResults, userTurn: (t) => ({ role: 'user', content: t }) },
+  gemini: { turn: geminiTurn, toolResults: geminiToolResults, userTurn: (t) => ({ role: 'user', parts: [{ text: t }] }) }
+};
+
 /* ---------------- 送出一輪對話（含工具迴圈） ---------------- */
 async function send(text) {
   if (busy) return;
-  if (!get(KEY_API)) { bubble('bot', '還沒設定 API 金鑰。'); showSettings(true); return; }
+  if (!apiKey()) { bubble('bot', `還沒設定 ${conf().label.split('（')[0]} 的 API 金鑰。`); showSettings(true); return; }
   if (budgetBlocked()) return;
 
+  const adapter = ADAPTERS[provider()];
   busy = true;
   $('#aiPanel').classList.add('is-busy');
   bubble('user', esc(text).replace(/\n/g, '<br>'));
 
-  let c;
-  try {
-    c = await getClient();
-  } catch (e) {
-    busy = false;
-    $('#aiPanel')?.classList.remove('is-busy');
-    bubble('bot', `載入 AI 元件失敗（${esc(e.message)}）。它是從 esm.sh 取得的，請確認有網路、或稍後再試。行程的其他功能都不受影響。`, 'aiMsg--err');
-    return;
+  /* Anthropic 走 SDK，要先把模組載進來；載不到就講清楚而不是靜靜失敗 */
+  if (provider() === 'anthropic') {
+    try { await getClient(); }
+    catch (e) {
+      busy = false;
+      $('#aiPanel')?.classList.remove('is-busy');
+      bubble('bot', `載入 AI 元件失敗（${esc(e.message)}）。它是從 esm.sh 取得的，請確認有網路、或稍後再試。行程的其他功能都不受影響。`, 'aiMsg--err');
+      return;
+    }
   }
 
-  history.push({ role: 'user', content: text });
+  history.push(adapter.userTurn(text));
 
-  const model = get(KEY_MODEL, MODELS[0].id);
+  const model = modelId();
   const startSpent = usage().spent;
   let answer = null;      /* 目前這輪的文字泡泡 */
   let acted = false;
 
   try {
-    /* 手動 tool-use 迴圈：一直跑到 Claude 不再呼叫工具為止 */
+    /* 手動 tool-use 迴圈：一直跑到模型不再呼叫工具為止 */
     for (let round = 0; round < 8; round++) {
-      const stream = c.messages.stream({
-        model,
-        max_tokens: 16000,
-        system: systemBlocks(),
-        tools: TOOLS,
-        messages: history
-      });
-
       let acc = '';
-      stream.on('text', (t) => {
-        acc += t;
-        if (!answer) answer = bubble('bot', '');
-        answer.textContent = acc;
-        scroll();
+      const turn = await adapter.turn({
+        model, history,
+        onText: (t) => {
+          acc += t;
+          if (!answer) answer = bubble('bot', '');
+          answer.textContent = acc;
+          scroll();
+        }
       });
 
-      const msg = await stream.finalMessage();
-      addUsage(model, msg.usage);
+      addUsage(model, turn.usage);
       renderUsage();
 
-      if (msg.stop_reason === 'refusal') {
+      if (turn.stop === 'refusal') {
         bubble('bot', '這個請求被安全機制擋下來了，換個問法試試。', 'aiMsg--err');
         break;
       }
 
-      history.push({ role: 'assistant', content: msg.content });
-
-      const calls = msg.content.filter((b) => b.type === 'tool_use');
-      if (!calls.length) break;
+      history.push(turn.native);
+      if (!turn.toolCalls.length) break;
 
       /* 執行所有工具，結果一次送回（平行呼叫必須放在同一則訊息裡） */
       const results = [];
-      for (const call of calls) {
+      for (const call of turn.toolCalls) {
         let payload, isError = false, label;
         try {
-          const out = HANDLERS[call.name]
-            ? HANDLERS[call.name](call.input || {})
-            : (() => { throw new Error('未知的工具 ' + call.name); })();
-          payload = out;
-          label = toolLabel(call.name, call.input, out);
+          if (!HANDLERS[call.name]) throw new Error('未知的工具 ' + call.name);
+          payload = HANDLERS[call.name](call.input || {});
+          label = toolLabel(call.name, call.input, payload);
           if (call.name !== 'get_trip') acted = true;
         } catch (e) {
           payload = { error: e.message };
@@ -623,15 +832,10 @@ async function send(text) {
           label = `${call.name} 失敗：${e.message}`;
         }
         bubble('bot', `<span class="aiTool${isError ? ' is-err' : ''}">${isError ? '⚠' : '✓'} ${esc(label)}</span>`, 'aiMsg--tool');
-        results.push({
-          type: 'tool_result',
-          tool_use_id: call.id,
-          content: JSON.stringify(payload),
-          is_error: isError
-        });
+        results.push({ id: call.id, name: call.name, payload, isError });
       }
       if (acted) TripAPI.commit();
-      history.push({ role: 'user', content: results });
+      history.push(adapter.toolResults(results));
       answer = null;   /* 下一輪的文字開新泡泡 */
     }
 
@@ -642,9 +846,11 @@ async function send(text) {
     busy = false;
     $('#aiPanel')?.classList.remove('is-busy');
 
-    /* 這輪花了多少，以及 80% / 100% 提醒 */
+    /* 這輪花了多少，以及 80% / 100% 提醒（免費層沒有花費，跳過） */
     const u = usage(), b = budget();
     u.turns += 1; saveUsage(u); renderUsage();
+    if (!conf().paid) { scroll(); return; }
+
     const spentNow = u.spent - startSpent;
     if (spentNow > 0) bubble('bot', `<span class="aiCost">這輪約 ${money(spentNow)}　·　本月 ${money(u.spent)} / ${money(b)}</span>`, 'aiMsg--tool');
 
@@ -685,6 +891,36 @@ function showError(e) {
         <p class="aiSetup__note">順便建議在同一頁把 <b>Spend limits</b> 設好，就有硬性的花費上限了。</p>
       </div>`, 'aiMsg--err aiMsg--wide');
     return;
+  }
+
+  /* Gemini 免費層最常見的兩種：額度用完、金鑰不對 */
+  if (provider() === 'gemini') {
+    if (status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(msg)) {
+      bubble('bot', `
+        <div class="aiSetup">
+          <b>免費層額度暫時用完了</b>
+          <p>Gemini 免費層有「每分鐘」和「每天」的次數限制。等一兩分鐘再送通常就可以了；如果是當天的額度用完，就要等隔天。</p>
+          <p>不想等的話：按 ⚙ 換成 <b>gemini-2.5-flash</b>（額度比 pro 多），或回 Claude Code 的對話請它幫你改行程。</p>
+        </div>`, 'aiMsg--err aiMsg--wide');
+      return;
+    }
+    if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(msg)) {
+      bubble('bot', '這把 Gemini 金鑰無效。到 aistudio.google.com/apikey 重新建一把，再按 ⚙ 貼上。', 'aiMsg--err');
+      return;
+    }
+    if (status === 403) {
+      bubble('bot', `Gemini 拒絕這把金鑰（403）：${esc(msg)}。通常是金鑰被限制了來源網域，或這個模型在你的地區還沒開放。`, 'aiMsg--err');
+      return;
+    }
+    if (/Failed to fetch|NetworkError/i.test(String(e?.message || '')) ) {
+      bubble('bot', `
+        <div class="aiSetup">
+          <b>瀏覽器連不到 Gemini</b>
+          <p>可能是網路問題，也可能是瀏覽器的 CORS 限制擋掉了直連。</p>
+          <p>如果換了網路還是一樣，就需要架一個小代理（Cloudflare Worker 免費層就夠）把請求轉一手。回 Claude Code 的對話跟我說，我幫你做。</p>
+        </div>`, 'aiMsg--err aiMsg--wide');
+      return;
+    }
   }
 
   let text;

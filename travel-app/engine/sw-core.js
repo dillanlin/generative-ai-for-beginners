@@ -4,7 +4,7 @@
 /* ⚠️ 改動 SHELL 或任何 engine 檔案後記得把 v 往上加一號，
    否則舊裝置會一直吃到舊快取。 */
 var SCOPE = self.location.pathname.replace(/\/sw\.js$/, '');
-var VERSION = 'trip' + SCOPE.replace(/\//g, '-') + '-v2';
+var VERSION = 'trip' + SCOPE.replace(/\//g, '-') + '-v3';
 var SHELL = [
   './',
   './index.html',
