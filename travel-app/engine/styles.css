@@ -287,6 +287,8 @@ a{color:var(--teal-dk)}
 .leg__line::before{content:"";position:absolute;top:50%;left:0;right:0;border-top:2px dashed #A9CDD4}
 .leg__line svg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;color:var(--teal);background:var(--card);padding:0 3px;box-sizing:content-box}
 .note{font-size:12.5px;color:var(--muted);line-height:1.6;margin:10px 0 0}
+/* trip.js 發布新版本後蓋掉本機編輯時的說明卡 */
+.noteCard{background:#EAF7F4;border:1px solid #B9E3DA;border-radius:12px;padding:10px 12px;color:var(--ink)}
 
 /* 租車表 */
 .kv{width:100%;border-collapse:collapse}

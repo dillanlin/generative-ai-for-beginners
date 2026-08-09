@@ -10,6 +10,11 @@ window.TRIP_DATA = {
   meta: {
     /* id 必須唯一：App 用它來分開存每趟旅程的資料，建議跟資料夾同名 */
     id: 'my-trip-2026',
+    /* rev = 這個檔案的版本號。★ 每次改完 trip.js 就把它加一號。
+       只要 rev 變大，已經在 App 內編輯過的手機也會自動換成這個檔案的新內容
+       （舊的本機編輯會自動備份，可在「行程設定 → 資料 → 救回本機編輯」拿回來）。
+       不加 rev 的話，那台手機會一直停在自己的本機版本，看不到你的更新。 */
+    rev: 1,
     title: '我的旅程 5天4夜',
     subtitleEn: 'DESTINATION · COUNTRY',
     rangeLabel: '',                 // 留空會依 startDate/endDate 自動產生

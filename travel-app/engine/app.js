@@ -49,6 +49,7 @@
 
   var K = {
     data: 'trip:' + TID + ':data',
+    backup: 'trip:' + TID + ':backup',
     shop: 'trip:' + TID + ':shop',
     ledger: 'trip:' + TID + ':ledger',
     day: 'trip:' + TID + ':day'
@@ -68,8 +69,22 @@
 
   /* 有本機編輯（dirty）就用本機的；沒有就永遠跟著 trip.js 走，
      這樣你改了 trip.js 之後重新打開就會看到新內容。
-     自建旅程沒有 trip.js，永遠只有本機這一份。 */
+     自建旅程沒有 trip.js，永遠只有本機這一份。
+
+     ⚠️ 例外：trip.js 的 meta.rev（版本號）比本機存的大時，代表檔案那邊有
+     「刻意發布」的新版本，這時就算本機有編輯過也改用檔案版 —— 否則一旦在
+     App 內動過任何東西，之後更新 trip.js 就永遠推不到這台裝置上。
+     舊的本機版本會先備份到 K.backup，隨時可以在行程設定裡救回來。 */
   var savedBlob = store.get(K.data, null);
+  var FILE_REV = FILE ? (+FILE.meta.rev || 0) : 0;
+  var SAVED_REV = savedBlob ? (+savedBlob.rev || 0) : 0;
+  var revBumped = !!(FILE && savedBlob && savedBlob.dirty && FILE_REV > SAVED_REV);
+
+  if (revBumped) {
+    store.set(K.backup, { rev: SAVED_REV, at: new Date().toISOString(), data: savedBlob.data });
+    savedBlob = null;
+  }
+
   var useSaved = !!(savedBlob && savedBlob.data && (!FILE || savedBlob.dirty));
   if (!FILE && !useSaved) { fatal('找不到這趟旅程的資料，可能已經被刪除了。'); return; }
 
@@ -91,8 +106,12 @@
 
   function persist(markDirty) {
     if (markDirty !== false) S.dirty = true;
-    store.set(K.data, { dirty: S.dirty, data: S.trip });
+    store.set(K.data, { dirty: S.dirty, rev: FILE_REV, data: S.trip });
   }
+
+  /* 剛被 trip.js 的新版本接管：把「已經吃到 rev N」記下來，
+     否則每次重開都會再備份一次、也會重複跳提示。 */
+  if (revBumped) persist(false);
 
   var lastDate = function () { var d = T().days; return d.length ? d[d.length - 1].date : M().startDate; };
   var tripDone = function () { return T().days.length > 0 && todayISO() > lastDate(); };
@@ -632,12 +651,20 @@
           (!FILE
             ? '這是在首頁自建的旅程，<b>只存在這台裝置的瀏覽器裡</b>。想長久保存就按「匯出 trip.js」，把檔案放進 <code>trips/</code> 底下的新資料夾，再到 <code>trips.js</code> 加一行。'
             : S.dirty
-              ? '目前顯示的是<b>你在 App 內編輯過的版本</b>。按「匯出 trip.js」把它存回檔案，換手機或分享給旅伴就不用重編。'
-              : '目前完全照著 <code>trip.js</code> 顯示。只要在 App 內做任何編輯，就會改用本機版本。') + '</p>' +
+              ? '目前顯示的是<b>你在 App 內編輯過的版本</b>（檔案版本 rev ' + FILE_REV + '）。' +
+                '按「匯出 trip.js」把它存回檔案，換手機或分享給旅伴就不用重編。'
+              : '目前完全照著 <code>trip.js</code> 顯示（rev ' + FILE_REV + '）。只要在 App 內做任何編輯，就會改用本機版本；' +
+                '之後 <code>trip.js</code> 只要把 <code>meta.rev</code> 加一號，這台裝置就會自動換回檔案版。') + '</p>' +
+        (revBumped
+          ? '<p class="note noteCard" style="margin:0 0 12px">✅ <b>已自動更新到 trip.js 的 rev ' + FILE_REV + '</b>：' +
+            '偵測到檔案發布了新版本，所以蓋過了這台裝置上的舊編輯。' +
+            '你原本的本機版本已經備份起來，按下面的「救回本機編輯」就能拿回去。</p>'
+          : '') +
         '<div class="rowActs">' +
           '<button class="btn btn--primary" data-act="export-tripjs">' + I.code + '匯出 trip.js</button>' +
           '<button class="btn btn--outline" data-act="trip-export">' + I.share + '匯出 JSON（給旅伴）</button>' +
           '<button class="btn btn--outline" data-act="trip-import">匯入 JSON</button>' +
+          (store.get(K.backup, null) ? '<button class="btn btn--outline" data-act="trip-restore-backup">救回本機編輯</button>' : '') +
           (FILE ? '<button class="btn btn--danger" data-act="trip-reset">還原成 trip.js</button>' : '') +
         '</div></div>' +
     '</section>';
@@ -1181,10 +1208,24 @@
       case 'export-tripjs': exportTripJs(); break;
       case 'trip-export': exportTripJson(); break;
       case 'trip-import': importTripJson(); break;
+      case 'trip-restore-backup':
+        var bk = store.get(K.backup, null);
+        if (!bk || !bk.data) { toast('沒有可以救回的備份'); break; }
+        if (confirm('把被 trip.js 蓋掉的本機編輯拿回來？\n（會覆蓋目前畫面上的檔案版內容，記帳與勾選不受影響）')) {
+          S.trip = bk.data; S.dirty = true;
+          if (!S.trip.days) S.trip.days = [];
+          if (!S.trip.shopping) S.trip.shopping = [];
+          if (S.dayIndex >= S.trip.days.length) S.dayIndex = 0;
+          persist(); store.del(K.backup);
+          revBumped = false;
+          render(); toast('已救回本機編輯');
+        }
+        break;
       case 'trip-reset':
         if (confirm('丟掉 App 內的所有編輯，改回 trip.js 的內容？\n（記帳與勾選狀態不受影響）')) {
           S.trip = blankTrip(); S.dirty = false;
-          store.del(K.data);
+          store.del(K.data); store.del(K.backup);
+          revBumped = false;
           if (S.dayIndex >= S.trip.days.length) S.dayIndex = 0;
           render(); toast('已還原');
         }

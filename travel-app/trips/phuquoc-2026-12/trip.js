@@ -14,6 +14,7 @@
 window.TRIP_DATA = {
   meta: {
     id: 'phuquoc-2026-12',
+    rev: 1,                        // ★ 改完這個檔案就把 rev 加一號，手機重開才會吃到新版
     title: '富國島 5天4夜',
     subtitleEn: 'PHU QUOC · VIETNAM',
     rangeLabel: '12/1 – 12/5',
