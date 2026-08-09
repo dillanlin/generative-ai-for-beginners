@@ -25,6 +25,13 @@ window.TRIPS = [
     emoji: '🦑'
   },
   {
+    folder: 'hochiminh-2026-12',
+    title: '胡志明市 5天4夜',
+    sub: 'HO CHI MINH CITY · VIETNAM',
+    range: '2026/12/01 – 12/05',
+    emoji: '🛵'
+  },
+  {
     folder: 'boracay-2027-01',
     title: '長灘島 4天3夜',
     sub: 'BORACAY · PHILIPPINES',
