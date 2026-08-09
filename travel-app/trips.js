@@ -19,9 +19,9 @@ window.TRIPS = [
   },
   {
     folder: 'phuquoc-2026-12',
-    title: '富國島 4天3夜',
+    title: '富國島 5天4夜',
     sub: 'PHU QUOC · VIETNAM',
-    range: '2026/12/10 – 12/13',
+    range: '2026/12/01 – 12/05',
     emoji: '🦑'
   },
   {
