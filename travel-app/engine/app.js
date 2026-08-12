@@ -147,6 +147,7 @@
     bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9.5 17h5M10 20h4M12 3.5A5.5 5.5 0 0 0 8.6 13.3c.5.4.9 1 .9 1.7h5c0-.7.4-1.3.9-1.7A5.5 5.5 0 0 0 12 3.5z"/></svg>',
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s6.5-6 6.5-11a6.5 6.5 0 1 0-13 0C5.5 15 12 21 12 21z"/><circle cx="12" cy="10" r="2.4"/></svg>',
     phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6.5 4h3l1.5 4-2 1.4a11 11 0 0 0 5.6 5.6L16 13l4 1.5v3a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4.5 6.2 2 2 0 0 1 6.5 4z"/></svg>',
+    photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M4 17l4.5-4.5a1.6 1.6 0 0 1 2.2 0L14 15.7l2.2-2.2a1.6 1.6 0 0 1 2.2 0L21 16"/></svg>',
     route: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="6" cy="5.5" r="2.2"/><circle cx="18" cy="18.5" r="2.2"/><path d="M6 7.8v3.4a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3z"/></svg>',
     plane: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 4.2 3.6 11.4c-.7.3-.7 1.2 0 1.5l4.2 1.5 1.6 4.6c.2.7 1.2.8 1.5.1l2.1-3.9 4.3 3.2c.6.4 1.4.1 1.5-.6L22 5c.2-.7-.4-1.1-1-.8z"/></svg>',
@@ -272,6 +273,74 @@
     '<g fill="none" stroke="#2FA8B5" stroke-width="3" stroke-linecap="round">' +
     '<path d="M4 56c9-7 18 7 27 0s18 7 27 0 18 7 27 0 18 7 27 0"/></g></svg>';
 
+  /* ---------------- 停點照片 ----------------
+     trip.js 可以寫 photo: 'photos/xxx.jpg'（單張）
+     或 photos: ['a.jpg', { src:'b.jpg', caption:'門口這面牆' }]（多張）。
+     路徑相對於該趟旅程的資料夾，也可以直接放 https:// 的網址。 */
+  function photosOf(it) {
+    var raw = [];
+    if (it.photo) raw = raw.concat(it.photo);
+    if (it.photos) raw = raw.concat(it.photos);
+    return raw.map(function (p) {
+      return typeof p === 'string' ? { src: p, caption: '' } : { src: p.src || '', caption: p.caption || '' };
+    }).filter(function (p) { return p.src; });
+  }
+
+  var LB = null;
+  function lightbox() {
+    if (LB) return LB;
+    var el = document.createElement('div');
+    el.className = 'lb';
+    el.innerHTML =
+      '<button class="lb__close" type="button" aria-label="關閉">✕</button>' +
+      '<button class="lb__nav lb__nav--prev" type="button" aria-label="上一張">‹</button>' +
+      '<figure class="lb__fig"><img class="lb__img" alt="" /><figcaption class="lb__cap"></figcaption></figure>' +
+      '<button class="lb__nav lb__nav--next" type="button" aria-label="下一張">›</button>' +
+      '<p class="lb__count"></p>';
+    document.body.appendChild(el);
+    LB = { el: el, list: [], i: 0 };
+
+    function show(n) {
+      if (!LB.list.length) return;
+      LB.i = (n + LB.list.length) % LB.list.length;
+      var p = LB.list[LB.i];
+      el.querySelector('.lb__img').src = p.src;
+      el.querySelector('.lb__cap').textContent = p.caption || '';
+      el.querySelector('.lb__count').textContent = LB.list.length > 1 ? (LB.i + 1) + ' / ' + LB.list.length : '';
+      el.classList.toggle('lb--single', LB.list.length < 2);
+    }
+    LB.show = show;
+    LB.close = function () { el.classList.remove('lb--on'); el.querySelector('.lb__img').src = ''; };
+
+    el.querySelector('.lb__close').addEventListener('click', LB.close);
+    el.querySelector('.lb__nav--prev').addEventListener('click', function () { show(LB.i - 1); });
+    el.querySelector('.lb__nav--next').addEventListener('click', function () { show(LB.i + 1); });
+    el.addEventListener('click', function (e) { if (e.target === el) LB.close(); });
+    document.addEventListener('keydown', function (e) {
+      if (!el.classList.contains('lb--on')) return;
+      if (e.key === 'Escape') LB.close();
+      if (e.key === 'ArrowLeft') show(LB.i - 1);
+      if (e.key === 'ArrowRight') show(LB.i + 1);
+    });
+    /* 手機左右滑動換圖 */
+    var x0 = null;
+    el.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 45) show(LB.i + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+    return LB;
+  }
+
+  function openPhotos(list, start) {
+    if (!list.length) return;
+    var lb = lightbox();
+    lb.list = list;
+    lb.show(start || 0);
+    lb.el.classList.add('lb--on');
+  }
+
   function stopHtml(it, idx, day) {
     var chips = '<span class="chip ' + (CAT_CHIP[it.cat] || '') + '">' + esc(it.cat || '行程') + '</span>';
     if (it.booked) chips += '<span class="chip chip--amber">✓ ' + esc(it.booked) + '</span>';
@@ -280,6 +349,11 @@
     }).join('');
     var tip = it.tip ? '<div class="tip">' + I.bulb + '<span>' + esc(it.tip) + '</span></div>' : '';
     var acts = '<a class="btn btn--pill" target="_blank" rel="noopener" href="' + esc(mapLink(it)) + '">' + I.pin + '地圖</a>';
+    var pics = photosOf(it);
+    if (pics.length) {
+      acts += '<button class="btn btn--outline" type="button" data-act="photos" data-id="' + esc(it.id) + '">' +
+        I.photo + '圖片' + (pics.length > 1 ? ' ' + pics.length : '') + '</button>';
+    }
     if (it.tel) acts += '<a class="btn btn--outline" href="tel:' + esc(it.tel) + '">' + I.phone + '撥號</a>';
 
     var alts = '';
@@ -732,7 +806,13 @@
         value: it.mapUrl || (it.lat != null ? it.lat + ',' + it.lng : ''),
         ph: '貼上完整連結，或 24.8266,125.1447'
       }) +
-      field('電話', 'tel', { type: 'tel', value: it.tel || '' });
+      field('電話', 'tel', { type: 'tel', value: it.tel || '' }) +
+      field('照片', 'photoText', {
+        type: 'textarea', rows: 3,
+        value: photosOf(it).map(function (p) { return p.src + (p.caption ? ' | ' + p.caption : ''); }).join('\n'),
+        ph: 'photos/kisserine.jpg | 門口這面牆很好拍\nhttps://…/x.jpg',
+        hint: '一行一張，格式「路徑 | 說明」（說明可省略）。路徑相對這趟旅程的資料夾，也可以貼 https 網址。'
+      });
 
     openSheet(existing ? '編輯行程' : '新增行程', body, function (f) {
       if (!f.title) { toast('請填名稱'); return false; }
@@ -745,6 +825,12 @@
         var p = line.split('|');
         return p.length > 1 ? { icon: p[0].trim(), text: p.slice(1).join('|').trim() } : { icon: 'clock', text: line.trim() };
       }).filter(function (m) { return m.text; }) : null;
+
+      delete t.photo;
+      t.photos = f.photoText ? f.photoText.split('\n').map(function (line) {
+        var p = line.split('|');
+        return { src: p[0].trim(), caption: p.slice(1).join('|').trim() };
+      }).filter(function (p) { return p.src; }) : null;
 
       var c = parseCoords(f.map);
       if (c) { t.lat = c.lat; t.lng = c.lng; delete t.mapUrl; }
@@ -1190,6 +1276,11 @@
     if (!(el = t.closest('[data-act]'))) return;
     switch (el.dataset.act) {
       case 'item-add': itemSheet(null); break;
+      case 'photos':
+        var pDay = T().days[S.dayIndex] || { items: [] };
+        var pIt = pDay.items.filter(function (x) { return x.id === el.dataset.id; })[0];
+        if (pIt) openPhotos(photosOf(pIt), 0);
+        break;
       case 'edit-day': daySheet(S.dayIndex); break;
       case 'edit-meta': metaSheet(); break;
       case 'edit-flights': flightsSheet(); break;

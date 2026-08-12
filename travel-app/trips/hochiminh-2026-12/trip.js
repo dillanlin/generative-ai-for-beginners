@@ -15,7 +15,7 @@
 window.TRIP_DATA = {
   meta: {
     id: 'hochiminh-2026-12',
-    rev: 1,                        // ★ 改完這個檔案就把 rev 加一號，手機重開才會吃到新版
+    rev: 2,                        // ★ 改完這個檔案就把 rev 加一號，手機重開才會吃到新版
     title: '胡志明市 5天4夜',
     subtitleEn: 'HO CHI MINH CITY · VIETNAM',
     rangeLabel: '12/1 – 12/5',
@@ -122,6 +122,7 @@ window.TRIP_DATA = {
         { id: 'hcm1-4', time: '11:30', cat: '午餐', title: '濱城市場 Chợ Bến Thành', subtitle: '胡志明最大的市場 · 熟食區吃午餐',
           lat: 10.7725, lng: 106.6980,
           meta: [{ icon: 'walk', text: '🚶 飯店走路 5 分' }, { icon: 'clock', text: '06:00–18:00' }],
+          photos: [{ src: 'photos/aodai-ha-fashion.jpg', caption: 'HÀ Fashion Shop（市場內）· 奧黛訂製、MAKE IN ONE DAY、老闆會英文 —— 第一天就先來量身' }],
           tip: '⚠️ 市場內買東西一律殺價到「開價的 3–4 折」再談。真的要買紀念品，超市或高島屋反而比較不會被坑' },
         { id: 'hcm1-5', time: '13:30', cat: '景點', title: '統一宮 Dinh Độc Lập', subtitle: '南越總統府舊址 · 1975 年坦克撞門處',
           lat: 10.7772, lng: 106.6955,
@@ -130,6 +131,10 @@ window.TRIP_DATA = {
         { id: 'hcm1-6', time: '15:00', cat: '景點', title: '西貢中心郵局 · 書街', subtitle: '法式建築 · 艾菲爾設計 · 旁邊就是書街',
           lat: 10.7799, lng: 106.6999,
           meta: [{ icon: 'walk', text: '🚶 統一宮走路 8 分' }],
+          photos: [
+            { src: 'photos/con-meo-nho.jpg', caption: 'Con Mèo Nhỏ / Little Cats Studio · 綠色門面，書街進去的第一家 —— 越南傳統 dó 紙、手工裝幀' },
+            { src: 'photos/photographer-weilan.jpg', caption: '微藍攝影跟拍 · 1 小時 ¥699（約 NT$3,000）送 10 張精修 —— ⭐ 建議取到奧黛後，早上 08:30 在郵局／書街／歌劇院這一帶拍，晨光最柔、人最少。要提前私訊預約' }
+          ],
           tip: '郵局裡可以寄明信片回台灣。⚠️ 旁邊的聖母大教堂長期整修中，外觀被鷹架包住，不用抱太大期待' },
         { id: 'hcm1-7', time: '16:30', cat: '咖啡', title: '咖啡公寓 The Cafe Apartment', subtitle: '阮惠街上的老公寓 · 整棟都是咖啡廳',
           lat: 10.7743, lng: 106.7040,
@@ -150,6 +155,10 @@ window.TRIP_DATA = {
         { id: 'hcm1-10', time: '21:00', cat: '景點', title: '范五老街 Bùi Viện', subtitle: '背包客酒吧街 · 越夜越吵',
           lat: 10.7670, lng: 106.6930,
           meta: [{ icon: 'car', text: '📱 Grab 或走路 15 分' }],
+          photos: [
+            { src: 'photos/lsoul.jpg', caption: 'LSOUL · 257B Nguyễn Trãi（從范五老街走約 8 分）—— 越南服飾品牌' },
+            { src: 'photos/ton-that-thiep-42.jpg', caption: '淘貨指南：Tanh-Jiki 就在范五老街；42 Tôn Thất Thiệp 老公寓與 culcat thrift mama 在第一郡核心' }
+          ],
           tip: '喝一杯感受氣氛就好。⚠️ 這裡扒手最多，錢包手機收好，不要接受陌生人請的酒' }
       ]
     },
@@ -170,6 +179,7 @@ window.TRIP_DATA = {
         { id: 'hcm2-4', time: '15:00', cat: '景點', title: '戰爭遺跡博物館', subtitle: '越戰主題 · 館藏震撼',
           lat: 10.7797, lng: 106.6922,
           meta: [{ icon: 'walk', text: '🚶 飯店走路 15 分／📱 Grab 5 分' }, { icon: 'ticket', text: '約 40,000 VND' }, { icon: 'clock', text: '07:30–17:30' }],
+          photos: [{ src: 'photos/blume.jpg', caption: 'Blume 香水 · 185 Võ Văn Tần —— 跟博物館（28 Võ Văn Tần）同一條街，往西走 800 公尺。賣 d\'Annam 越南本土香水' }],
           tip: '⚠️ 三樓的橙劑（落葉劑）展區照片非常沉重，心理準備一下。跟上午的古芝地道一起看，會對這段歷史有完整的理解' },
         { id: 'hcm2-5', time: '17:00', cat: '咖啡', title: '下午咖啡 · 休息', subtitle: '博物館附近咖啡廳',
           lat: 10.7790, lng: 106.6935,
@@ -177,6 +187,7 @@ window.TRIP_DATA = {
         { id: 'hcm2-6', time: '18:30', cat: '景點', title: 'Landmark 81 觀景台', subtitle: '越南最高樓 461m · 看西貢河夜景',
           lat: 10.7950, lng: 106.7218,
           meta: [{ icon: 'car', text: '📱 Grab · 約 20 分' }, { icon: 'ticket', text: '約 300,000 VND' }],
+          photos: [{ src: 'photos/nham-coffee.jpg', caption: 'nham.coffee 花咖 · 195/10/2 Điện Biên Phủ（平盛郡，離這裡約 10 分）· 24 小時 —— ⚠️ 花的佈置是季節性的，且另有第十郡／Thảo Điền 分店，別走錯' }],
           tip: '⭐ 或改去 Bitexco 金融塔 Skydeck（10.7717, 106.7043）——比較近、比較便宜，但視野沒這麼廣。想省錢的話直接去 Landmark 81 樓上的酒吧點一杯，view 一樣' },
         { id: 'hcm2-7', time: '20:00', cat: '晚餐', title: '晚餐 · 西貢河畔', subtitle: '或加購西貢河遊船晚餐',
           lat: 10.7720, lng: 106.7060,
@@ -228,7 +239,14 @@ window.TRIP_DATA = {
         { id: 'hcm4-2', time: '09:30', cat: '景點', title: '新定教堂（粉紅教堂）Tân Định', subtitle: '全粉紅色的天主教堂 · 拍照名點',
           lat: 10.7897, lng: 106.6905,
           meta: [{ icon: 'car', text: '📱 Grab · 約 10 分' }],
-          tip: '早上光線最好、人也少。旁邊就是新定市場，賣布料跟在地小吃' },
+          photos: [
+            { src: 'photos/kisserine.jpg', caption: 'Kisserine · 41/5 Phạm Ngọc Thạch, Q3 —— 巷內獨棟兩層樓禮服店' },
+            { src: 'photos/jubin-studio.jpg', caption: 'JUBIN STUDIO · 4B Phan Kế Bính, Đa Kao（09:00–21:00）—— 嬌小女生取向' },
+            { src: 'photos/bunnyhill-concept.jpg', caption: 'BunnyHill Concept · 25 Trần Quang Diệu, Q3 —— oversized 剪裁' },
+            { src: 'photos/bunnyhill-map-q3.jpg', caption: '三郡逛街地圖：BunnyHill、WARDROBE ARC、Tiemmem、Viery 都在 Trần Quang Diệu 這條服飾街上' },
+            { src: 'photos/fanci-club.jpg', caption: 'Fanci Club · 186 Nguyễn Văn Hưởng, Thảo Điền 第二郡（10:00–21:00）—— ⚠️ 過河，離第一郡 20–30 分，不順路' }
+          ],
+          tip: '早上光線最好、人也少。旁邊就是新定市場，賣布料跟在地小吃。⭐ 這幾張照片是第三郡／Đa Kao 待排的店，行程定案後我再拆到各自的停點' },
         { id: 'hcm4-3', time: '10:30', cat: '景點', title: '玉皇殿 Chùa Ngọc Hoàng', subtitle: '百年道教廟 · 歐巴馬來過',
           lat: 10.7907, lng: 106.6934,
           meta: [{ icon: 'walk', text: '🚶 粉紅教堂走路 10 分' }],
@@ -252,6 +270,11 @@ window.TRIP_DATA = {
         { id: 'hcm4-8', time: '17:30', cat: '購物', title: '高島屋 / Vincom 超市採買', subtitle: 'G7 咖啡、腰果、調理包一次補齊',
           lat: 10.7730, lng: 106.7005,
           meta: [{ icon: 'walk', text: '🚶 咖啡廳走路 5 分' }, { icon: 'clock', text: '09:30–22:00' }],
+          photos: [
+            { src: 'photos/chautfifth-takashimaya.jpg', caption: 'CHAUTFIFTH · 就在高島屋裡 —— vintage 包款與配件' },
+            { src: 'photos/ton-that-thiep-42.jpg', caption: '42 Tôn Thất Thiệp 老公寓（08:30–21:00）就在高島屋正對面，走路 2 分 —— 每層約 10 間 local brand，還有 culcat thrift mama 古著與調香店' },
+            { src: 'photos/rue-miche.jpg', caption: 'Rue Miche L\'édition · Union Square, 171 Đồng Khởi（10:00–21:00，走路約 6 分）' }
+          ],
           tip: '⭐ 超市價格透明不用殺價，是買伴手禮最省事的地方。⚠️ 魚露、醬料必須託運' },
         { id: 'hcm4-9', time: '19:00', cat: '晚餐', title: '最後一晚好好吃一頓', subtitle: '越式精緻料理',
           lat: 10.7760, lng: 106.7010,
