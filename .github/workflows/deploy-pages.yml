@@ -1,6 +1,12 @@
 # 把 travel-app/ 發布到 GitHub Pages。
 # 網址：https://<帳號>.github.io/<repo 名稱>/
 # 只上傳 travel-app 這個資料夾，所以網站首頁就是旅程清單，不是教學 repo 的 README。
+#
+# ⚠️ 為什麼分成兩個 job：
+#    deploy 那個 job 綁了 `environment: github-pages`，而這個環境要「Pages 已啟用」
+#    才會存在。如果直接綁，在還沒啟用過 Pages 的 repo 上，job 會在啟動前就失敗
+#    （2 秒、沒有任何 log）。所以先用不綁環境的 setup job 把 Pages 開起來，
+#    環境生出來之後 deploy 才接手。
 name: Deploy travel-app to Pages
 
 on:
@@ -22,15 +28,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # 第一段：確保 Pages 已啟用（順便建立 github-pages 環境），並打包網站
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      # enablement: true 會在 Pages 還沒開啟時自動幫忙開起來
+      # enablement: true 會在 Pages 還沒開啟時，透過 API 幫忙開起來
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -39,5 +43,13 @@ jobs:
         with:
           path: travel-app
 
+  # 第二段：真正部署。此時 github-pages 環境已經存在
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
