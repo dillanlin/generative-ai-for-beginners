@@ -1,0 +1,43 @@
+# 把 travel-app/ 發布到 GitHub Pages。
+# 網址：https://<帳號>.github.io/<repo 名稱>/
+# 只上傳 travel-app 這個資料夾，所以網站首頁就是旅程清單，不是教學 repo 的 README。
+name: Deploy travel-app to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'travel-app/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:        # 也可以在 Actions 頁面手動按一次
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時只跑一個部署，但不取消進行中的（避免半途中斷）
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement: true 會在 Pages 還沒開啟時自動幫忙開起來
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: travel-app
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
