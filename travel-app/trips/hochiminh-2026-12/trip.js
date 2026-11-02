@@ -15,7 +15,7 @@
 window.TRIP_DATA = {
   meta: {
     id: 'hochiminh-2026-12',
-    rev: 7,                        // ★ 改完這個檔案就把 rev 加一號，手機重開才會吃到新版
+    rev: 8,                        // ★ 改完這個檔案就把 rev 加一號，手機重開才會吃到新版
     title: '胡志明市 5天4夜',
     subtitleEn: 'HO CHI MINH CITY · VIETNAM',
     rangeLabel: '12/1 – 12/5',
@@ -69,6 +69,23 @@ window.TRIP_DATA = {
 
   shopping: [
     {
+      id: 'booking', icon: 'ticket', tone: 'purple',
+      title: '★ 預訂進度 · 訂好就打勾',
+      items: [
+        { id: 'bk-1', name: '🔴 e-visa（兩人）', note: '官網 evisa.gov.vn · 25 USD／人 · 審核約 3 個工作天 · ⚠️ 最晚 11/17 前送件（出發前兩週）· 沒辦就上不了飛機' },
+        { id: 'bk-2', name: '🔴 Day3 湄公河一日遊', note: 'KKday／Klook · 約 NT$350–900／人 · 訂時填 Jovia Hotel（132 Lý Tự Trọng）就有免費接送 · ⚠️ 這天不是自由行，一定要跟團' },
+        { id: 'bk-3', name: '🔴 Day2 西貢河日落遊船', note: 'Klook 買一送一 · 兩人約 NT$894 · ⚠️ 訂前確認開船時間（17:00）與「自行前往」不含接送 · 碼頭 Bến Bạch Đằng' },
+        { id: 'bk-4', name: '🟡 跟拍攝影師（12/4 08:30）', note: '小紅書私訊「微藍攝影」· 1 小時 ¥699 送 10 張精修 · 要問：① 當天有空嗎 ② 交通費含不含 ③ 精修交件時間 ④ 訂金怎麼付 ⑤ 取消改期規定 ⑥ 要不要加訂第二小時拍花咖' },
+        { id: 'bk-5', name: '🟡 Blank Sky Lounge 訂位（12/2 20:30）', note: 'Landmark 81 · 75F · 免觀景台門票，點飲料入場 · ⚠️ 有服裝規定，別穿拖鞋短褲' },
+        { id: 'bk-6', name: '🟡 Day4 晚餐訂位（12/4 20:30）', note: '週五晚上好餐廳會滿 · Secret Garden／Propaganda／Quán Bụi Garden 擇一' },
+        { id: 'bk-7', name: '🟡 Day3 按摩訂位（12/3 21:00）', note: '第一郡 · 60 分鐘約 300,000–500,000 VND · 找 Google 4.5★ 以上、有明確標價的店' },
+        { id: 'bk-8', name: '🟢 HCMC Metro APP 註冊綁卡', note: '捷運一日券 40,000 VND 只能在 APP 買，外國人只能刷信用卡 · 出發前先弄好' },
+        { id: 'bk-9', name: '🟢 下載 Grab 並綁卡', note: '叫車、叫機車、外送都靠它' },
+        { id: 'bk-10', name: '🟢 飯店備註要高樓層', note: 'Jovia 最多人抱怨隔音 · 可以先在訂房平台留言，或 check-in 當場講' },
+        { id: 'bk-11', name: '🟢 列印行程單 + e-visa 紙本', note: '訂單 1616333532545830 · 去程 M46HDV · 回程 DU9GP8' }
+      ]
+    },
+    {
       id: 'spec', icon: 'bottle', tone: 'amber',
       title: '越南必買',
       items: [
@@ -109,23 +126,17 @@ window.TRIP_DATA = {
     },
     {
       id: 'notice', icon: 'alert', tone: 'navy',
-      title: '行前提醒 · 出發前檢查',
+      title: '行前提醒 · 出發前一晚檢查',
       items: [
-        { id: 'hcm-n1', name: '★ e-visa 一定要先辦', note: '官網線上 25 USD、約 3 個工作天；出發前至少兩週送件。單次入境 90 天' },
-        { id: 'hcm-n2', name: '健康申報表', note: '入境越南前線上填寫' },
         { id: 'hcm-n3', name: '護照效期 6 個月以上', note: '' },
-        { id: 'hcm-n4', name: '列印行程單', note: '訂單 1616333532545830 · 去程 M46HDV · 回程 DU9GP8' },
-        { id: 'hcm-n5', name: '下載 HCMC Metro APP', note: '捷運一日券只能在 APP 買，要綁信用卡，先註冊好' },
-        { id: 'hcm-n6', name: '下載 Grab', note: '叫車、叫機車、外送都靠它，比計程車安全也便宜' },
+        { id: 'hcm-n2', name: '健康申報表', note: '入境越南前線上填寫（抵達前再填就好）' },
         { id: 'hcm-n7', name: '越南盾現金', note: '建議每人 300–500 萬 VND；機場匯率差，市區金店換最好' },
-        { id: 'hcm-n8', name: '★ Day3 湄公河一日遊要先訂', note: '⚠️ 這天不是自由行 —— 美拖離市區 70 公里，一定要跟團。KKday／Klook 約 NT$350–900／人，訂時填第一郡飯店就有免費接送' },
-        { id: 'hcm-n13', name: '★ Day2 日落遊船先訂', note: 'Klook 買一送一，兩人約 NT$894。⚠️ 訂前確認開船時間與是否含接送（這個方案是自行前往）' },
-        { id: 'hcm-n14', name: 'Blank Sky Lounge 有服裝規定', note: 'Landmark 81 的 75 樓，別穿拖鞋短褲；建議先訂位' },
-        { id: 'hcm-n9', name: '跟拍攝影師先預約', note: 'Day4 08:30 那場，要提前私訊敲時間與集合點' },
-        { id: 'hcm-n10', name: '09:45 到小港機場', note: '票上建議起飛前 3 小時；VJ885 12:45 起飛' },
+        { id: 'hcm-n15', name: '耳塞', note: 'Jovia 隔音是最多人抱怨的點，帶一副有備無患' },
         { id: 'hcm-n11', name: '防蚊液 + 防曬', note: 'Day3 湄公河那天特別需要' },
         { id: 'hcm-n12', name: '腸胃藥', note: '路邊攤吃不慣的話備著' },
-        { id: 'hcm-n15', name: '耳塞', note: 'Jovia 隔音是最多人抱怨的點，帶一副有備無患' }
+        { id: 'hcm-n16', name: '托特包 + 防塵袋', note: 'Day4 奧黛要穿到中午再換，便服跟奧黛都得帶著走' },
+        { id: 'hcm-n17', name: '行李秤過再出門', note: '去程託運 20kg／人、手提含隨身 7kg · VietJet 超重收費很兇' },
+        { id: 'hcm-n10', name: '09:45 到小港機場', note: '票上建議起飛前 3 小時；VJ885 12:45 起飛' }
       ]
     }
   ],
